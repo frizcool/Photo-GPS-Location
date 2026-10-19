@@ -371,7 +371,10 @@ export async function createStampedImage(
   let targetWidth = sourceWidth;
   let targetHeight = sourceHeight;
 
-  if (settings.aspectRatio === '1:1') {
+  if (settings.aspectRatio === 'original') {
+    targetWidth = sourceWidth;
+    targetHeight = sourceHeight;
+  } else if (settings.aspectRatio === '1:1') {
     const minDim = Math.min(sourceWidth, sourceHeight);
     targetWidth = minDim;
     targetHeight = minDim;
@@ -398,9 +401,12 @@ export async function createStampedImage(
   const ctx = canvas.getContext('2d');
   if (!ctx) throw new Error('Could not get canvas context');
 
+  // Fill canvas background with clean dark tone for letterboxing if needed
+  ctx.fillStyle = '#0a0f1d';
+  ctx.fillRect(0, 0, targetWidth, targetHeight);
+
   // 1. Draw transformed photograph with crop/zoom/pan/rotation adjustment
   ctx.save();
-  // Clip to output bounds
   ctx.beginPath();
   ctx.rect(0, 0, targetWidth, targetHeight);
   ctx.clip();
@@ -413,12 +419,26 @@ export async function createStampedImage(
   let baseSx = 0;
   let baseSy = 0;
 
-  if (srcAspect > targetAspect) {
-    baseSw = sourceHeight * targetAspect;
-    baseSx = (sourceWidth - baseSw) / 2;
-  } else if (srcAspect < targetAspect) {
-    baseSh = sourceWidth / targetAspect;
-    baseSy = (sourceHeight - baseSh) / 2;
+  if (settings.aspectRatio === 'original') {
+    baseSw = sourceWidth;
+    baseSh = sourceHeight;
+    baseSx = 0;
+    baseSy = 0;
+  } else if (adjustment?.fitMode === 'fit') {
+    // Fit entire image without cropping
+    baseSw = sourceWidth;
+    baseSh = sourceHeight;
+    baseSx = 0;
+    baseSy = 0;
+  } else {
+    // Fill mode: crop to aspect ratio
+    if (srcAspect > targetAspect) {
+      baseSw = sourceHeight * targetAspect;
+      baseSx = (sourceWidth - baseSw) / 2;
+    } else if (srcAspect < targetAspect) {
+      baseSh = sourceWidth / targetAspect;
+      baseSy = (sourceHeight - baseSh) / 2;
+    }
   }
 
   // Apply user zoom and pan adjustments
@@ -443,8 +463,14 @@ export async function createStampedImage(
   ctx.translate(shiftX, shiftY);
 
   // Scaled dimensions
-  const drawWidth = targetWidth * zoom;
-  const drawHeight = targetHeight * zoom;
+  let drawWidth = targetWidth * zoom;
+  let drawHeight = targetHeight * zoom;
+
+  if (adjustment?.fitMode === 'fit' && settings.aspectRatio !== 'original') {
+    const scaleFactor = Math.min(targetWidth / sourceWidth, targetHeight / sourceHeight);
+    drawWidth = sourceWidth * scaleFactor * zoom;
+    drawHeight = sourceHeight * scaleFactor * zoom;
+  }
 
   ctx.drawImage(
     imageSource,

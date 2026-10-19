@@ -52,11 +52,12 @@ export const CameraControls: React.FC<CameraControlsProps> = ({
 }) => {
   const uploadInputRef = useRef<HTMLInputElement | null>(null);
 
-  // Cycle aspect ratio 1:1 -> 4:3 -> 16:9
+  // Cycle aspect ratio original -> 1:1 -> 4:3 -> 16:9 -> original
   const cycleAspectRatio = () => {
-    if (aspectRatio === '1:1') onAspectRatioChange('4:3');
+    if (aspectRatio === 'original') onAspectRatioChange('1:1');
+    else if (aspectRatio === '1:1') onAspectRatioChange('4:3');
     else if (aspectRatio === '4:3') onAspectRatioChange('16:9');
-    else onAspectRatioChange('1:1');
+    else onAspectRatioChange('original');
   };
 
   // Cycle timer 0 -> 3 -> 5 -> 0
@@ -119,10 +120,12 @@ export const CameraControls: React.FC<CameraControlsProps> = ({
             type="button"
             onClick={cycleAspectRatio}
             className="flex items-center gap-1 px-2.5 py-1.5 rounded-full bg-white/10 hover:bg-white/20 active:scale-95 text-white transition-all"
-            title="Rasio Foto"
+            title="Rasio Foto (Asli, 1:1, 4:3, 16:9)"
           >
             <Square className="w-3.5 h-3.5 text-slate-300" />
-            <span className="font-mono text-[11px]">{aspectRatio}</span>
+            <span className="font-mono text-[11px]">
+              {aspectRatio === 'original' ? 'Asli' : aspectRatio}
+            </span>
           </button>
 
           {/* Self-Timer */}

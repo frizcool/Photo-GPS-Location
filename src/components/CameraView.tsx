@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { StampLocation, StampSettings, ImageAdjustment } from '../types/stamp';
+import { StampLocation, StampSettings, ImageAdjustment, AspectRatio } from '../types/stamp';
 import { TimestampOverlay } from './TimestampOverlay';
 import {
   Camera,
@@ -11,8 +11,8 @@ import {
   Move,
   AlertCircle,
   SlidersHorizontal,
-  Image as ImageIcon,
-  Compass,
+  Maximize2,
+  Minimize2,
 } from 'lucide-react';
 import { createStampedImage } from '../utils/canvasStamp';
 import { cameraAudio } from '../utils/audio';
@@ -43,6 +43,7 @@ interface CameraViewProps {
   showGrid: boolean;
   uploadedPhotoUrl?: string | null;
   onClearUploadedPhoto?: () => void;
+  onAspectRatioChange?: (ratio: AspectRatio) => void;
   onPhotoCaptured: (dataUrl: string) => void;
   onEditLocationRequest: () => void;
   onOpenLogoPicker: () => void;
@@ -58,6 +59,7 @@ export const CameraView: React.FC<CameraViewProps> = ({
   showGrid,
   uploadedPhotoUrl,
   onClearUploadedPhoto,
+  onAspectRatioChange,
   onPhotoCaptured,
   onEditLocationRequest,
   onOpenLogoPicker,
@@ -77,17 +79,47 @@ export const CameraView: React.FC<CameraViewProps> = ({
   const [activeSampleIdx, setActiveSampleIdx] = useState<number>(0);
   const [isFlashing, setIsFlashing] = useState(false);
   const [countdown, setCountdown] = useState<number | null>(null);
+  const [imageNaturalAspect, setImageNaturalAspect] = useState<number | null>(null);
 
   const activeImage = uploadedPhotoUrl || internalCustomImage;
 
-  // Image Adjustment State (Pan / Geser, Zoom in/out, Rotate)
+  // Image Adjustment State (Pan / Geser, Zoom in/out, Rotate, Fit/Fill)
   const [adjustment, setAdjustment] = useState<ImageAdjustment>({
     zoom: 1.0,
     panX: 0,
     panY: 0,
     rotate: 0,
+    fitMode: 'fit',
   });
   const [showAdjustBar, setShowAdjustBar] = useState<boolean>(false);
+
+  // Measure uploaded image aspect ratio & auto-adapt container to prevent cropping
+  useEffect(() => {
+    if (activeImage) {
+      const img = new Image();
+      img.src = activeImage;
+      img.onload = () => {
+        if (img.naturalWidth && img.naturalHeight) {
+          const ratio = img.naturalWidth / img.naturalHeight;
+          setImageNaturalAspect(ratio);
+          // Auto switch to original aspect ratio so image is never cropped!
+          if (onAspectRatioChange) {
+            onAspectRatioChange('original');
+          }
+        }
+      };
+      // Reset pan and zoom to perfectly centered fit whenever a new photo is chosen
+      setAdjustment({
+        zoom: 1.0,
+        panX: 0,
+        panY: 0,
+        rotate: 0,
+        fitMode: 'fit',
+      });
+    } else {
+      setImageNaturalAspect(null);
+    }
+  }, [activeImage, onAspectRatioChange]);
 
   // Touch & Drag state for fluid mobile interaction
   const isDraggingRef = useRef(false);
@@ -152,14 +184,14 @@ export const CameraView: React.FC<CameraViewProps> = ({
     };
   }, [facingMode, activeImage]);
 
-  // Handle Real Device Orientation Compass (iOS webkitCompassHeading & Android deviceorientationabsolute)
+  // Real Device Orientation Compass (iOS webkitCompassHeading & Android deviceorientationabsolute)
   useEffect(() => {
     let lastHeading = location.heading ?? 0;
 
     const handleOrientation = (e: DeviceOrientationEvent) => {
       let rawHeading: number | null = null;
 
-      // 1. iOS: webkitCompassHeading (direct magnetic heading)
+      // 1. iOS: webkitCompassHeading
       const webkitHeading = (e as unknown as { webkitCompassHeading?: number }).webkitCompassHeading;
       if (typeof webkitHeading === 'number' && !isNaN(webkitHeading)) {
         rawHeading = webkitHeading;
@@ -173,7 +205,6 @@ export const CameraView: React.FC<CameraViewProps> = ({
       }
 
       if (rawHeading !== null) {
-        // Smooth rotational damping
         let diff = (rawHeading - lastHeading) % 360;
         if (diff > 180) diff -= 360;
         if (diff < -180) diff += 360;
@@ -184,7 +215,6 @@ export const CameraView: React.FC<CameraViewProps> = ({
       }
     };
 
-    // Listen to device orientation with high responsiveness
     const win = window as unknown as {
       DeviceOrientationEvent?: typeof DeviceOrientationEvent;
       addEventListener: typeof window.addEventListener;
@@ -200,11 +230,11 @@ export const CameraView: React.FC<CameraViewProps> = ({
 
     return () => {
       win.removeEventListener('deviceorientationabsolute', handleOrientation as EventListener, true);
-      win.removeEventListener('deviceorientation', handleOrientation as EventListener, true);
+      win.removeEventListener('deviceorientation', handleOrientation, true);
     };
   }, [onHeadingChange, location.heading]);
 
-  // Request iOS Compass Permission on user touch
+  // Request iOS Compass Permission
   const handleRequestCompassPermission = async () => {
     if (
       typeof DeviceOrientationEvent !== 'undefined' &&
@@ -212,17 +242,14 @@ export const CameraView: React.FC<CameraViewProps> = ({
         'function'
     ) {
       try {
-        const res = await (DeviceOrientationEvent as unknown as { requestPermission: () => Promise<string> }).requestPermission();
-        if (res === 'granted') {
-          // Permission granted on iOS
-        }
+        await (DeviceOrientationEvent as unknown as { requestPermission: () => Promise<string> }).requestPermission();
       } catch (err) {
         console.warn('iOS orientation permission error:', err);
       }
     }
   };
 
-  // Pan / Drag Handlers (touch-friendly)
+  // Pan / Drag Handlers
   const handlePointerDown = (clientX: number, clientY: number) => {
     isDraggingRef.current = true;
     startPosRef.current = { x: clientX, y: clientY };
@@ -258,10 +285,10 @@ export const CameraView: React.FC<CameraViewProps> = ({
   // Wheel to Zoom
   const handleWheel = (e: React.WheelEvent) => {
     e.preventDefault();
-    const zoomDelta = e.deltaY < 0 ? 0.1 : -0.1;
+    const zoomDelta = e.deltaY < 0 ? 0.08 : -0.08;
     setAdjustment((prev) => ({
       ...prev,
-      zoom: Math.max(1.0, Math.min(3.0, parseFloat((prev.zoom + zoomDelta).toFixed(2)))),
+      zoom: Math.max(0.6, Math.min(3.0, parseFloat((prev.zoom + zoomDelta).toFixed(2)))),
     }));
   };
 
@@ -284,7 +311,7 @@ export const CameraView: React.FC<CameraViewProps> = ({
       const t2 = e.touches[1];
       const dist = Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY);
       const ratio = dist / touchDistanceRef.current;
-      const newZoom = Math.max(1.0, Math.min(3.0, startZoomRef.current * ratio));
+      const newZoom = Math.max(0.6, Math.min(3.0, startZoomRef.current * ratio));
       setAdjustment((prev) => ({
         ...prev,
         zoom: parseFloat(newZoom.toFixed(2)),
@@ -363,7 +390,7 @@ export const CameraView: React.FC<CameraViewProps> = ({
     setIsTakingPhoto,
   ]);
 
-  // Watch isTakingPhoto prop to trigger capture (with optional timer)
+  // Watch isTakingPhoto prop to trigger capture
   useEffect(() => {
     if (!isTakingPhoto) return;
 
@@ -412,19 +439,25 @@ export const CameraView: React.FC<CameraViewProps> = ({
 
   const handleClearImage = () => {
     setInternalCustomImage(null);
+    setImageNaturalAspect(null);
     if (onClearUploadedPhoto) onClearUploadedPhoto();
   };
 
+  // Determine viewport aspect ratio class
   const getAspectClass = () => {
     switch (settings.aspectRatio) {
       case '1:1':
-        return 'aspect-square max-h-[75vh] sm:max-h-[80vh]';
+        return 'aspect-square max-h-[72vh] sm:max-h-[78vh]';
       case '4:3':
-        return 'aspect-4/3 max-h-[78vh] sm:max-h-[82vh]';
+        return 'aspect-4/3 max-h-[75vh] sm:max-h-[80vh]';
       case '16:9':
-        return 'aspect-9/16 sm:aspect-16/9 max-h-[82vh] sm:max-h-[85vh]';
+        return 'aspect-9/16 sm:aspect-16/9 max-h-[78vh] sm:max-h-[82vh]';
+      case 'original':
       default:
-        return 'h-full w-full';
+        if (imageNaturalAspect) {
+          return 'max-h-[75vh] sm:max-h-[80vh] max-w-full';
+        }
+        return 'aspect-4/3 max-h-[75vh] sm:max-h-[80vh]';
     }
   };
 
@@ -435,7 +468,6 @@ export const CameraView: React.FC<CameraViewProps> = ({
 
   return (
     <div className="relative flex-1 flex items-center justify-center bg-black overflow-hidden select-none w-full">
-      {/* File input for uploading photo from device */}
       <input
         type="file"
         ref={fileInputRef}
@@ -455,7 +487,13 @@ export const CameraView: React.FC<CameraViewProps> = ({
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handlePointerUp}
-        className={`relative w-full max-w-2xl mx-auto overflow-hidden shadow-2xl transition-all duration-300 cursor-grab active:cursor-grabbing touch-none ${getAspectClass()}`}
+        style={{
+          aspectRatio:
+            settings.aspectRatio === 'original' && imageNaturalAspect
+              ? `${imageNaturalAspect}`
+              : undefined,
+        }}
+        className={`relative w-full max-w-2xl mx-auto overflow-hidden shadow-2xl transition-all duration-300 cursor-grab active:cursor-grabbing touch-none bg-slate-950 ${getAspectClass()}`}
       >
         {/* Shutter White Flash effect */}
         {isFlashing && (
@@ -478,7 +516,9 @@ export const CameraView: React.FC<CameraViewProps> = ({
               src={activeImage}
               alt="Foto Pilihan"
               style={transformStyle}
-              className="w-full h-full object-cover select-none pointer-events-none origin-center"
+              className={`w-full h-full select-none pointer-events-none origin-center ${
+                adjustment.fitMode === 'fill' ? 'object-cover' : 'object-contain'
+              }`}
             />
           ) : !cameraError ? (
             <video
@@ -579,8 +619,15 @@ export const CameraView: React.FC<CameraViewProps> = ({
               <span className="font-medium">Foto Terunggah</span>
               <button
                 type="button"
+                onClick={() => setShowAdjustBar((v) => !v)}
+                className="ml-1 text-sky-300 hover:text-white font-semibold underline"
+              >
+                Atur/Fit
+              </button>
+              <button
+                type="button"
                 onClick={() => fileInputRef.current?.click()}
-                className="ml-1 text-sky-300 hover:text-white underline font-semibold"
+                className="ml-1 text-slate-300 hover:text-white text-[10px]"
               >
                 Ganti
               </button>
@@ -597,14 +644,14 @@ export const CameraView: React.FC<CameraViewProps> = ({
               type="button"
               onClick={() => setShowAdjustBar((v) => !v)}
               className={`px-3 py-1 rounded-full text-xs font-medium flex items-center gap-1.5 backdrop-blur-md border shadow-lg transition-all ${
-                showAdjustBar || adjustment.zoom > 1.0 || adjustment.panX !== 0 || adjustment.panY !== 0
+                showAdjustBar || adjustment.zoom !== 1.0 || adjustment.panX !== 0 || adjustment.panY !== 0
                   ? 'bg-blue-600 border-blue-400 text-white'
                   : 'bg-black/60 hover:bg-black/80 border-white/30 text-white/90'
               }`}
               title="Atur Zoom, Geser Posisi, dan Rotasi Gambar"
             >
               <Move className="w-3.5 h-3.5" />
-              <span>Sesuaikan {adjustment.zoom > 1.0 ? `${adjustment.zoom}x` : ''}</span>
+              <span>Sesuaikan {adjustment.zoom !== 1.0 ? `${adjustment.zoom}x` : ''}</span>
             </button>
           )}
 
@@ -622,22 +669,60 @@ export const CameraView: React.FC<CameraViewProps> = ({
           )}
         </div>
 
-        {/* Floating Pan / Zoom / Crop Adjustment Panel */}
+        {/* Floating Pan / Zoom / Fit Adjustment Panel */}
         {showAdjustBar && (
-          <div className="absolute top-12 left-1/2 -translate-x-1/2 z-40 w-[92%] max-w-sm bg-slate-950/95 backdrop-blur-md border border-white/20 rounded-2xl p-3 shadow-2xl pointer-events-auto text-white text-xs space-y-2 animate-in fade-in duration-150">
+          <div className="absolute top-12 left-1/2 -translate-x-1/2 z-40 w-[92%] max-w-sm bg-slate-950/95 backdrop-blur-md border border-white/20 rounded-2xl p-3 shadow-2xl pointer-events-auto text-white text-xs space-y-2.5 animate-in fade-in duration-150">
             <div className="flex items-center justify-between">
               <span className="font-semibold text-slate-200 flex items-center gap-1.5">
                 <SlidersHorizontal className="w-3.5 h-3.5 text-blue-400" />
-                Geser & Zoom Foto
+                Penyesuaian Gambar (Tanpa Terpotong)
               </span>
               <button
                 type="button"
                 onClick={() =>
-                  setAdjustment({ zoom: 1.0, panX: 0, panY: 0, rotate: 0 })
+                  setAdjustment({ zoom: 1.0, panX: 0, panY: 0, rotate: 0, fitMode: 'fit' })
                 }
                 className="text-[11px] text-blue-400 hover:text-blue-300 font-medium"
               >
-                Reset Posisi
+                Reset Utuh
+              </button>
+            </div>
+
+            {/* Fit vs Fill Mode Selector */}
+            <div className="flex items-center gap-1.5 p-1 bg-slate-900 rounded-lg border border-white/10">
+              <button
+                type="button"
+                onClick={() =>
+                  setAdjustment((prev) => ({
+                    ...prev,
+                    fitMode: 'fit',
+                    zoom: 1.0,
+                    panX: 0,
+                    panY: 0,
+                  }))
+                }
+                className={`flex-1 py-1.5 px-2 rounded-md font-medium text-[11px] flex items-center justify-center gap-1 transition-colors ${
+                  adjustment.fitMode !== 'fill'
+                    ? 'bg-blue-600 text-white shadow-xs'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                <Minimize2 className="w-3 h-3" />
+                <span>Muat Penuh (Fit / Utuh)</span>
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  setAdjustment((prev) => ({ ...prev, fitMode: 'fill' }))
+                }
+                className={`flex-1 py-1.5 px-2 rounded-md font-medium text-[11px] flex items-center justify-center gap-1 transition-colors ${
+                  adjustment.fitMode === 'fill'
+                    ? 'bg-blue-600 text-white shadow-xs'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                <Maximize2 className="w-3 h-3" />
+                <span>Isi Penuh (Fill / Crop)</span>
               </button>
             </div>
 
@@ -648,7 +733,7 @@ export const CameraView: React.FC<CameraViewProps> = ({
                 onClick={() =>
                   setAdjustment((prev) => ({
                     ...prev,
-                    zoom: Math.max(1.0, parseFloat((prev.zoom - 0.1).toFixed(2))),
+                    zoom: Math.max(0.6, parseFloat((prev.zoom - 0.1).toFixed(2))),
                   }))
                 }
                 className="p-1 rounded-lg bg-white/10 hover:bg-white/20 text-white transition-colors"
@@ -659,7 +744,7 @@ export const CameraView: React.FC<CameraViewProps> = ({
 
               <input
                 type="range"
-                min="1.0"
+                min="0.6"
                 max="3.0"
                 step="0.05"
                 value={adjustment.zoom}
@@ -694,7 +779,7 @@ export const CameraView: React.FC<CameraViewProps> = ({
             {/* Quick zoom presets and rotate */}
             <div className="flex items-center justify-between pt-1 border-t border-white/10 text-[11px]">
               <div className="flex items-center gap-1.5">
-                {[1.0, 1.5, 2.0].map((z) => (
+                {[0.8, 1.0, 1.5, 2.0].map((z) => (
                   <button
                     key={z}
                     type="button"
@@ -730,7 +815,7 @@ export const CameraView: React.FC<CameraViewProps> = ({
             </div>
 
             <div className="text-[10px] text-slate-400 text-center pt-0.5">
-              Geser langsung layar dengan jari / mouse untuk memposisikan foto
+              Geser langsung gambar di layar dengan jari/mouse untuk memposisikannya
             </div>
           </div>
         )}

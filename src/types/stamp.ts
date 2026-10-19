@@ -18,13 +18,14 @@ export interface StampLocation {
 
 export type TimezoneOption = 'WIB' | 'WITA' | 'WIT' | 'AUTO' | 'UTC';
 
-export type AspectRatio = '1:1' | '4:3' | '16:9' | 'full';
+export type AspectRatio = 'original' | '1:1' | '4:3' | '16:9';
 
 export interface ImageAdjustment {
-  zoom: number; // 1.0 to 3.0
+  zoom: number; // 0.5 to 3.0
   panX: number; // -100 to 100 (% offset)
   panY: number; // -100 to 100 (% offset)
   rotate: number; // 0, 90, 180, 270
+  fitMode?: 'fit' | 'fill';
 }
 
 export interface StampSettings {

@@ -268,6 +268,9 @@ export default function App() {
           showGrid={showGrid}
           uploadedPhotoUrl={uploadedPhotoUrl}
           onClearUploadedPhoto={() => setUploadedPhotoUrl(null)}
+          onAspectRatioChange={(ratio: AspectRatio) =>
+            setSettings((s) => ({ ...s, aspectRatio: ratio }))
+          }
           onPhotoCaptured={handlePhotoCaptured}
           onEditLocationRequest={() => setIsSettingsOpen(true)}
           onOpenLogoPicker={() => setIsLogoModalOpen(true)}
