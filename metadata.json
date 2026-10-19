@@ -1,0 +1,6 @@
+{
+  "name": "GPS Timestamp Camera",
+  "description": "Aplikasi kamera timestamp GPS dengan informasi waktu, koordinat lokasi, kompas arah, dan peta mini otomatis.",
+  "requestFramePermissions": ["camera", "geolocation"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
