@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { StampLocation, StampSettings } from '../types/stamp';
+import { StampLocation, StampSettings, MapStyle } from '../types/stamp';
 import { CompassDial } from './CompassDial';
 import { MiniMap } from './MiniMap';
 import { formatCoordinates, formatIndonesianDate } from '../utils/geo';
@@ -14,6 +14,7 @@ interface TimestampOverlayProps {
   onHeadingChange?: (deg: number) => void;
   onMapImageReady?: (img: HTMLImageElement) => void;
   onLogoImageReady?: (img: HTMLImageElement | null) => void;
+  onMapStyleChange?: (style: MapStyle) => void;
 }
 
 export const TimestampOverlay: React.FC<TimestampOverlayProps> = ({
@@ -24,6 +25,7 @@ export const TimestampOverlay: React.FC<TimestampOverlayProps> = ({
   onHeadingChange,
   onMapImageReady,
   onLogoImageReady,
+  onMapStyleChange,
 }) => {
   const [currentTime, setCurrentTime] = useState(new Date());
   const logoImgRef = useRef<HTMLImageElement | null>(null);
@@ -151,6 +153,8 @@ export const TimestampOverlay: React.FC<TimestampOverlayProps> = ({
         size={128}
         zoom={settings.mapZoom}
         opacity={settings.mapOpacity ?? 0.85}
+        mapStyle={settings.mapStyle || 'roadmap'}
+        onMapStyleChange={onMapStyleChange}
         onClick={onEditRequest}
         onImageReady={onMapImageReady}
       />

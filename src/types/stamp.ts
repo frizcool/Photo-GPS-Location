@@ -30,6 +30,8 @@ export interface ImageAdjustment {
 
 export type StampPlacement = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
 
+export type MapStyle = 'roadmap' | 'satellite' | 'terrain';
+
 export interface StampSettings {
   language: 'id' | 'en';
   timezone: TimezoneOption;
@@ -39,6 +41,7 @@ export interface StampSettings {
   showCompass: boolean;
   showMap: boolean;
   mapOpacity: number; // 0.2 to 1.0
+  mapStyle?: MapStyle; // 'roadmap' | 'satellite' | 'terrain'
   showCoordinates: boolean;
   showAddress: boolean;
   showNotes: boolean;

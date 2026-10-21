@@ -27,11 +27,15 @@ import {
   ArrowUpRight,
   ArrowDownLeft,
   ArrowDownRight,
+  Layers,
+  Mountain,
+  Globe,
 } from 'lucide-react';
-import { StampLocation, StampSettings, TimezoneOption, SettingsPreset, StampPlacement } from '../types/stamp';
+import { StampLocation, StampSettings, TimezoneOption, SettingsPreset, StampPlacement, MapStyle } from '../types/stamp';
 import { PRESET_LOCATIONS, reverseGeocode, formatIndonesianDate } from '../utils/geo';
 import { FontStyleSelector } from './FontStyleSelector';
 import { PRESET_LOGOS } from '../utils/logoPresets';
+import { MAP_STYLE_OPTIONS } from '../utils/mapStyles';
 import {
   loadPresetsFromDatabase,
   savePresetToDatabase,
@@ -824,32 +828,126 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   />
                 </label>
 
-                {/* Map Opacity / Transparency Slider */}
+                {/* Map Style & Controls */}
                 {settings.showMap && (
-                  <div className="p-2.5 rounded-lg bg-slate-800/40 border border-slate-800/80 space-y-1">
-                    <div className="flex items-center justify-between text-[11px] text-slate-300">
-                      <span>Transparansi / Opacity Peta:</span>
-                      <span className="font-mono text-blue-400 font-bold">
-                        {Math.round((settings.mapOpacity ?? 0.85) * 100)}%
-                      </span>
+                  <div className="p-3 rounded-xl bg-slate-800/50 border border-slate-700/80 space-y-3">
+                    {/* Gaya Peta (Map Style) Selector */}
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <label className="text-[11px] font-semibold text-slate-200 flex items-center gap-1.5">
+                          <Layers className="w-3.5 h-3.5 text-blue-400" />
+                          <span>Gaya Tampilan Peta (Map Style):</span>
+                        </label>
+                        <span className="text-[10px] text-slate-400 font-mono">
+                          {settings.mapStyle === 'satellite'
+                            ? '🛰️ Satelit'
+                            : settings.mapStyle === 'terrain'
+                            ? '🏔️ Topografi'
+                            : '🗺️ Jalan'}
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-3 gap-2">
+                        {MAP_STYLE_OPTIONS.map((styleOpt) => {
+                          const isSelected = (settings.mapStyle || 'roadmap') === styleOpt.id;
+                          return (
+                            <button
+                              key={styleOpt.id}
+                              type="button"
+                              onClick={() =>
+                                onSettingsChange({
+                                  ...settings,
+                                  mapStyle: styleOpt.id,
+                                })
+                              }
+                              className={`relative flex flex-col items-center rounded-xl overflow-hidden border p-2 transition-all text-left ${
+                                isSelected
+                                  ? 'border-blue-500 bg-blue-950/60 ring-2 ring-blue-500/60 shadow-lg'
+                                  : 'border-slate-700/80 bg-slate-900/60 hover:border-slate-600 hover:bg-slate-900'
+                              }`}
+                            >
+                              {/* Thumbnail preview */}
+                              <div className="w-full h-14 rounded-lg overflow-hidden relative mb-1.5 border border-white/10 bg-slate-950">
+                                <img
+                                  src={styleOpt.previewUrl}
+                                  alt={styleOpt.name}
+                                  className="w-full h-full object-cover filter contrast-105"
+                                  loading="lazy"
+                                />
+                                {isSelected && (
+                                  <div className="absolute top-1 right-1 bg-blue-600 text-white p-0.5 rounded-full shadow-md">
+                                    <Check className="w-2.5 h-2.5" />
+                                  </div>
+                                )}
+                              </div>
+
+                              <span className="text-xs font-semibold text-white leading-tight">
+                                {styleOpt.shortName}
+                              </span>
+                              <span className="text-[9px] text-slate-400 text-center line-clamp-1 mt-0.5">
+                                {styleOpt.tagline}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
-                    <input
-                      type="range"
-                      min="0.2"
-                      max="1.0"
-                      step="0.05"
-                      value={settings.mapOpacity ?? 0.85}
-                      onChange={(e) =>
-                        onSettingsChange({
-                          ...settings,
-                          mapOpacity: parseFloat(e.target.value),
-                        })
-                      }
-                      className="w-full accent-blue-500 cursor-pointer h-1.5"
-                    />
-                    <div className="flex justify-between text-[9px] text-slate-500">
-                      <span>Lebih Transparan</span>
-                      <span>Solid / Jelas</span>
+
+                    {/* Map Zoom Slider */}
+                    <div className="space-y-1 pt-1 border-t border-slate-700/50">
+                      <div className="flex items-center justify-between text-[11px] text-slate-300">
+                        <span>Tingkat Zoom Peta:</span>
+                        <span className="font-mono text-blue-400 font-bold">
+                          {settings.mapZoom}x
+                        </span>
+                      </div>
+                      <input
+                        type="range"
+                        min="12"
+                        max="19"
+                        step="1"
+                        value={settings.mapZoom}
+                        onChange={(e) =>
+                          onSettingsChange({
+                            ...settings,
+                            mapZoom: parseInt(e.target.value, 10),
+                          })
+                        }
+                        className="w-full accent-blue-500 cursor-pointer h-1.5"
+                      />
+                      <div className="flex justify-between text-[9px] text-slate-500">
+                        <span>12x (Wilayah Luas)</span>
+                        <span>16x (Jalan)</span>
+                        <span>19x (Gedung Detail)</span>
+                      </div>
+                    </div>
+
+                    {/* Map Opacity / Transparency Slider */}
+                    <div className="space-y-1 pt-1 border-t border-slate-700/50">
+                      <div className="flex items-center justify-between text-[11px] text-slate-300">
+                        <span>Transparansi / Opacity Peta:</span>
+                        <span className="font-mono text-blue-400 font-bold">
+                          {Math.round((settings.mapOpacity ?? 0.85) * 100)}%
+                        </span>
+                      </div>
+                      <input
+                        type="range"
+                        min="0.2"
+                        max="1.0"
+                        step="0.05"
+                        value={settings.mapOpacity ?? 0.85}
+                        onChange={(e) =>
+                          onSettingsChange({
+                            ...settings,
+                            mapOpacity: parseFloat(e.target.value),
+                          })
+                        }
+                        className="w-full accent-blue-500 cursor-pointer h-1.5"
+                      />
+                      <div className="flex justify-between text-[9px] text-slate-500">
+                        <span>Lebih Transparan</span>
+                        <span>Solid / Jelas</span>
+                      </div>
                     </div>
                   </div>
                 )}

@@ -45,6 +45,7 @@ const INITIAL_SETTINGS: StampSettings = {
   showCompass: true,
   showMap: true,
   mapOpacity: 0.85, // Transparent / semi-opaque map
+  mapStyle: 'roadmap',
   showCoordinates: true,
   showAddress: true,
   showNotes: false,
@@ -350,6 +351,7 @@ export default function App() {
           onEditLocationRequest={() => setIsSettingsOpen(true)}
           onOpenLogoPicker={() => setIsLogoModalOpen(true)}
           onHeadingChange={handleHeadingChange}
+          onMapStyleChange={(style) => setSettings((s) => ({ ...s, mapStyle: style }))}
           isTakingPhoto={isTakingPhoto}
           setIsTakingPhoto={setIsTakingPhoto}
         />

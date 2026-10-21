@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { StampLocation, StampSettings, ImageAdjustment, AspectRatio } from '../types/stamp';
+import { StampLocation, StampSettings, ImageAdjustment, AspectRatio, MapStyle } from '../types/stamp';
 import { TimestampOverlay } from './TimestampOverlay';
 import {
   Camera,
@@ -14,9 +14,12 @@ import {
   Maximize2,
   Minimize2,
   Moon,
+  Layers,
+  Map as MapIcon,
 } from 'lucide-react';
 import { createStampedImage } from '../utils/canvasStamp';
 import { cameraAudio } from '../utils/audio';
+import { getNextMapStyle, getMapStyleMeta, MAP_STYLE_OPTIONS } from '../utils/mapStyles';
 
 const SAMPLE_BACKGROUNDS = [
   {
@@ -49,6 +52,7 @@ interface CameraViewProps {
   onEditLocationRequest: () => void;
   onOpenLogoPicker: () => void;
   onHeadingChange: (deg: number) => void;
+  onMapStyleChange?: (style: MapStyle) => void;
   isTakingPhoto: boolean;
   setIsTakingPhoto: (val: boolean) => void;
 }
@@ -65,6 +69,7 @@ export const CameraView: React.FC<CameraViewProps> = ({
   onEditLocationRequest,
   onOpenLogoPicker,
   onHeadingChange,
+  onMapStyleChange,
   isTakingPhoto,
   setIsTakingPhoto,
 }) => {
@@ -651,11 +656,12 @@ export const CameraView: React.FC<CameraViewProps> = ({
             onHeadingChange={handleOverlayHeadingChange}
             onMapImageReady={handleMapImageReady}
             onLogoImageReady={handleLogoImageReady}
+            onMapStyleChange={onMapStyleChange}
           />
         </div>
 
-        {/* Top Controls: Banner for Uploaded Photo & Image Adjuster */}
-        <div className="absolute top-2.5 left-1/2 -translate-x-1/2 z-40 flex items-center gap-2 pointer-events-auto">
+        {/* Top Controls: Banner for Uploaded Photo, Image Adjuster & Map Style Switcher */}
+        <div className="absolute top-2.5 left-1/2 -translate-x-1/2 z-40 flex items-center gap-2 pointer-events-auto max-w-[95%] flex-wrap justify-center">
           {activeImage ? (
             <div className="flex items-center gap-1.5 bg-blue-950/90 border border-blue-400/40 px-2.5 py-1 rounded-full backdrop-blur-md shadow-lg text-[11px] text-white">
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
@@ -695,6 +701,25 @@ export const CameraView: React.FC<CameraViewProps> = ({
             >
               <Move className="w-3.5 h-3.5" />
               <span>Sesuaikan {adjustment.zoom !== 1.0 ? `${adjustment.zoom}x` : ''}</span>
+            </button>
+          )}
+
+          {/* Quick Map Style Switcher when map is shown */}
+          {settings.showMap && (
+            <button
+              type="button"
+              onClick={() => onMapStyleChange?.(getNextMapStyle(settings.mapStyle || 'roadmap'))}
+              className={`px-2.5 py-1 backdrop-blur-md text-white text-xs font-medium rounded-full border shadow-md flex items-center gap-1.5 transition-all active:scale-95 ${
+                settings.mapStyle === 'satellite'
+                  ? 'bg-emerald-950/85 border-emerald-400/50 hover:bg-emerald-900/90 text-emerald-200'
+                  : settings.mapStyle === 'terrain'
+                  ? 'bg-amber-950/85 border-amber-400/50 hover:bg-amber-900/90 text-amber-200'
+                  : 'bg-black/60 hover:bg-black/80 border-white/30 text-white'
+              }`}
+              title={`Gaya Peta saat ini: ${getMapStyleMeta(settings.mapStyle || 'roadmap').name}. Klik untuk berganti (Satelit / Topografi / Jalan)`}
+            >
+              <Layers className="w-3 h-3 text-sky-400 shrink-0" />
+              <span>Peta: {getMapStyleMeta(settings.mapStyle || 'roadmap').shortName}</span>
             </button>
           )}
 

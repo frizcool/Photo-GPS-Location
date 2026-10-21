@@ -1,6 +1,7 @@
-import { StampLocation, StampSettings, ImageAdjustment } from '../types/stamp';
+import { StampLocation, StampSettings, ImageAdjustment, MapStyle } from '../types/stamp';
 import { formatCoordinates, formatIndonesianDate } from './geo';
 import { getFontStyleOption } from './fontStyles';
+import { getMapTileUrl } from './mapStyles';
 
 /**
  * Draws the reference-matched Compass Dial with dark circular ring, bold cardinal letters, and vivid cyan needle.
@@ -217,7 +218,7 @@ function drawPin(ctx: CanvasRenderingContext2D, px: number, py: number, size: nu
 }
 
 /**
- * Draws the Mini Map Box at bottom-left with custom opacity.
+ * Draws the Mini Map Box at bottom-left or bottom-right with custom opacity and map style.
  */
 export async function drawMiniMap(
   ctx: CanvasRenderingContext2D,
@@ -227,62 +228,83 @@ export async function drawMiniMap(
   lat: number,
   lon: number,
   mapImage?: HTMLImageElement | null,
-  opacity: number = 0.85
+  opacity: number = 0.85,
+  mapStyle: MapStyle = 'roadmap',
+  zoom: number = 16
 ) {
   ctx.save();
   ctx.globalAlpha = Math.max(0.2, Math.min(1.0, opacity));
 
   // Background box
-  ctx.fillStyle = '#f1f5f9';
+  ctx.fillStyle = mapStyle === 'satellite' ? '#0f172a' : mapStyle === 'terrain' ? '#f5ede0' : '#f1f5f9';
   ctx.fillRect(x, y, size, size);
 
+  let drawnFromImage = false;
   if (mapImage && mapImage.complete && mapImage.naturalWidth > 0) {
     try {
       ctx.drawImage(mapImage, x, y, size, size);
+      drawnFromImage = true;
     } catch {
-      drawVectorFallbackMap(ctx, x, y, size, lat, lon);
+      drawnFromImage = false;
     }
-  } else {
-    drawVectorFallbackMap(ctx, x, y, size, lat, lon);
+  }
+
+  // If mapImage was not loaded, attempt to draw tile or fallback
+  if (!drawnFromImage) {
+    drawVectorFallbackMap(ctx, x, y, size, lat, lon, mapStyle);
   }
 
   // Draw Pin in Center
   drawPin(ctx, x + size / 2, y + size / 2, size * 0.22);
 
-  // Google styled colored logo
-  ctx.font = `bold ${Math.max(10, Math.round(size * 0.08))}px sans-serif`;
-  ctx.textAlign = 'left';
-  ctx.textBaseline = 'bottom';
-  
+  // Google styled colored logo with adaptive pill badge
   const logoX = x + size * 0.04;
   const logoY = y + size - size * 0.04;
+  const pillHeight = Math.max(14, size * 0.12);
+  const pillWidth = size * 0.38;
+
+  // Background pill for Google text so it stays legible over bright streets and dark satellite imagery
+  ctx.fillStyle = mapStyle === 'satellite' ? 'rgba(0, 0, 0, 0.75)' : 'rgba(255, 255, 255, 0.82)';
+  ctx.strokeStyle = mapStyle === 'satellite' ? 'rgba(255, 255, 255, 0.2)' : 'rgba(0, 0, 0, 0.15)';
+  ctx.lineWidth = 1;
+  const pillY = y + size - pillHeight - size * 0.02;
+  const pillRad = 3;
+  ctx.beginPath();
+  ctx.rect(logoX - 3, pillY, pillWidth, pillHeight);
+  ctx.fill();
+  ctx.stroke();
+
+  ctx.font = `bold ${Math.max(10, Math.round(size * 0.08))}px sans-serif`;
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
   
-  ctx.shadowColor = 'rgba(255, 255, 255, 0.9)';
-  ctx.shadowBlur = 3;
+  const textBaselineY = pillY + pillHeight / 2 + 1;
+  ctx.shadowColor = 'rgba(0, 0, 0, 0.4)';
+  ctx.shadowBlur = 2;
   ctx.fillStyle = '#4285F4';
-  ctx.fillText('G', logoX, logoY);
+  ctx.fillText('G', logoX, textBaselineY);
   ctx.fillStyle = '#EA4335';
-  ctx.fillText('o', logoX + size * 0.05, logoY);
+  ctx.fillText('o', logoX + size * 0.05, textBaselineY);
   ctx.fillStyle = '#FBBC05';
-  ctx.fillText('o', logoX + size * 0.085, logoY);
+  ctx.fillText('o', logoX + size * 0.085, textBaselineY);
   ctx.fillStyle = '#4285F4';
-  ctx.fillText('g', logoX + size * 0.12, logoY);
+  ctx.fillText('g', logoX + size * 0.12, textBaselineY);
   ctx.fillStyle = '#34A853';
-  ctx.fillText('l', logoX + size * 0.155, logoY);
+  ctx.fillText('l', logoX + size * 0.155, textBaselineY);
   ctx.fillStyle = '#EA4335';
-  ctx.fillText('e', logoX + size * 0.175, logoY);
+  ctx.fillText('e', logoX + size * 0.175, textBaselineY);
   ctx.shadowBlur = 0;
 
   // Outer border
-  ctx.strokeStyle = 'rgba(0, 0, 0, 0.25)';
-  ctx.lineWidth = 1;
+  ctx.strokeStyle = 'rgba(0, 0, 0, 0.35)';
+  ctx.lineWidth = 1.5;
   ctx.strokeRect(x, y, size, size);
 
   ctx.restore();
 }
 
 /**
- * Fallback procedural vector map tile when network map image isn't available
+ * Fallback procedural vector map tile tailored to each map style
  */
 function drawVectorFallbackMap(
   ctx: CanvasRenderingContext2D,
@@ -290,50 +312,119 @@ function drawVectorFallbackMap(
   y: number,
   size: number,
   lat: number,
-  lon: number
+  lon: number,
+  mapStyle: MapStyle = 'roadmap'
 ) {
-  ctx.fillStyle = '#e8ecef';
-  ctx.fillRect(x, y, size, size);
+  if (mapStyle === 'satellite') {
+    // 1. Satellite Imagery Fallback: dark aerial terrain tones, land parcels, forests, water body
+    ctx.fillStyle = '#1e293b';
+    ctx.fillRect(x, y, size, size);
 
-  // Parks
-  ctx.fillStyle = '#d5e8d4';
-  ctx.beginPath();
-  ctx.rect(x + size * 0.05, y + size * 0.05, size * 0.35, size * 0.3);
-  ctx.rect(x + size * 0.65, y + size * 0.55, size * 0.3, size * 0.35);
-  ctx.fill();
+    // Deep forest canopy green patches
+    ctx.fillStyle = '#14532d';
+    ctx.beginPath();
+    ctx.rect(x + size * 0.05, y + size * 0.08, size * 0.4, size * 0.32);
+    ctx.rect(x + size * 0.55, y + size * 0.45, size * 0.38, size * 0.42);
+    ctx.fill();
 
-  // Water feature
-  ctx.fillStyle = '#b1d4e0';
-  ctx.beginPath();
-  ctx.moveTo(x, y + size * 0.7);
-  ctx.bezierCurveTo(x + size * 0.3, y + size * 0.75, x + size * 0.5, y + size * 0.85, x + size * 0.9, y + size);
-  ctx.lineTo(x, y + size);
-  ctx.closePath();
-  ctx.fill();
+    // Agricultural / Field parcel boundaries
+    ctx.fillStyle = '#1e3a1f';
+    ctx.fillRect(x + size * 0.5, y + size * 0.05, size * 0.42, size * 0.35);
 
-  // Roads
-  ctx.lineWidth = size * 0.045;
-  ctx.strokeStyle = '#ffffff';
-  ctx.beginPath();
-  ctx.moveTo(x, y + size * 0.5);
-  ctx.lineTo(x + size, y + size * 0.5);
-  ctx.moveTo(x + size * 0.5, y);
-  ctx.lineTo(x + size * 0.5, y + size);
-  ctx.moveTo(x + size * 0.2, y);
-  ctx.lineTo(x + size * 0.8, y + size);
-  ctx.stroke();
+    // Dark water reservoir
+    ctx.fillStyle = '#0c4a6e';
+    ctx.beginPath();
+    ctx.arc(x + size * 0.25, y + size * 0.75, size * 0.18, 0, Math.PI * 2);
+    ctx.fill();
 
-  ctx.lineWidth = 1;
-  ctx.strokeStyle = '#cbd5e1';
-  ctx.stroke();
+    // White/gray aerial road network
+    ctx.lineWidth = size * 0.035;
+    ctx.strokeStyle = '#94a3b8';
+    ctx.beginPath();
+    ctx.moveTo(x, y + size * 0.45);
+    ctx.lineTo(x + size, y + size * 0.48);
+    ctx.moveTo(x + size * 0.45, y);
+    ctx.lineTo(x + size * 0.48, y + size);
+    ctx.stroke();
 
-  // Buildings
-  ctx.fillStyle = '#f1f5f9';
-  const seed = Math.abs(Math.sin(lat + lon) * 100);
-  for (let i = 0; i < 4; i++) {
-    for (let j = 0; j < 4; j++) {
-      if ((i + j + Math.floor(seed)) % 2 === 0) {
-        ctx.fillRect(x + size * (0.12 + i * 0.22), y + size * (0.12 + j * 0.22), size * 0.12, size * 0.12);
+  } else if (mapStyle === 'terrain') {
+    // 2. Topographic Map Fallback: warm earth elevation tints & contour curves
+    ctx.fillStyle = '#f7f2e8';
+    ctx.fillRect(x, y, size, size);
+
+    // Elevation tint zones
+    ctx.fillStyle = '#e8dfce';
+    ctx.beginPath();
+    ctx.ellipse(x + size * 0.6, y + size * 0.4, size * 0.35, size * 0.28, 0.2, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = '#dbceb7';
+    ctx.beginPath();
+    ctx.ellipse(x + size * 0.6, y + size * 0.4, size * 0.2, size * 0.16, 0.2, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Topographic contour lines
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = 'rgba(180, 83, 9, 0.45)';
+    for (let r = 0.15; r < 0.55; r += 0.08) {
+      ctx.beginPath();
+      ctx.ellipse(x + size * 0.6, y + size * 0.4, size * r, size * (r * 0.75), 0.2, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+
+    // River / stream
+    ctx.strokeStyle = '#38bdf8';
+    ctx.lineWidth = size * 0.03;
+    ctx.beginPath();
+    ctx.moveTo(x, y + size * 0.15);
+    ctx.bezierCurveTo(x + size * 0.3, y + size * 0.2, x + size * 0.35, y + size * 0.6, x + size * 0.15, y + size);
+    ctx.stroke();
+
+  } else {
+    // 3. Roadmap Fallback: standard clean streets, parks, blocks
+    ctx.fillStyle = '#e8ecef';
+    ctx.fillRect(x, y, size, size);
+
+    // Parks
+    ctx.fillStyle = '#d5e8d4';
+    ctx.beginPath();
+    ctx.rect(x + size * 0.05, y + size * 0.05, size * 0.35, size * 0.3);
+    ctx.rect(x + size * 0.65, y + size * 0.55, size * 0.3, size * 0.35);
+    ctx.fill();
+
+    // Water feature
+    ctx.fillStyle = '#b1d4e0';
+    ctx.beginPath();
+    ctx.moveTo(x, y + size * 0.7);
+    ctx.bezierCurveTo(x + size * 0.3, y + size * 0.75, x + size * 0.5, y + size * 0.85, x + size * 0.9, y + size);
+    ctx.lineTo(x, y + size);
+    ctx.closePath();
+    ctx.fill();
+
+    // Roads
+    ctx.lineWidth = size * 0.045;
+    ctx.strokeStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.moveTo(x, y + size * 0.5);
+    ctx.lineTo(x + size, y + size * 0.5);
+    ctx.moveTo(x + size * 0.5, y);
+    ctx.lineTo(x + size * 0.5, y + size);
+    ctx.moveTo(x + size * 0.2, y);
+    ctx.lineTo(x + size * 0.8, y + size);
+    ctx.stroke();
+
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = '#cbd5e1';
+    ctx.stroke();
+
+    // Buildings
+    ctx.fillStyle = '#f1f5f9';
+    const seed = Math.abs(Math.sin(lat + lon) * 100);
+    for (let i = 0; i < 4; i++) {
+      for (let j = 0; j < 4; j++) {
+        if ((i + j + Math.floor(seed)) % 2 === 0) {
+          ctx.fillRect(x + size * (0.12 + i * 0.22), y + size * (0.12 + j * 0.22), size * 0.12, size * 0.12);
+        }
       }
     }
   }
@@ -628,7 +719,9 @@ export async function createStampedImage(
       location.latitude,
       location.longitude,
       mapImage,
-      settings.mapOpacity ?? 0.85
+      settings.mapOpacity ?? 0.85,
+      settings.mapStyle || 'roadmap',
+      settings.mapZoom || 16
     );
   }
 
