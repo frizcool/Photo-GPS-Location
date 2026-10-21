@@ -1,5 +1,5 @@
 import React, { useRef } from 'react';
-import { X, Upload, Trash2, Check, Shield, Plus } from 'lucide-react';
+import { X, Upload, Trash2, Check, Shield, Plus, Compass } from 'lucide-react';
 import { PRESET_LOGOS } from '../utils/logoPresets';
 
 interface LogoModalProps {
@@ -176,22 +176,85 @@ export const LogoModal: React.FC<LogoModalProps> = ({
             </div>
           </div>
 
-          {/* Logo Size Slider */}
+          {/* Logo Size & Proportionality Slider */}
           {logoUrl && (
-            <div className="space-y-1.5 pt-2 border-t border-slate-800">
-              <div className="flex justify-between items-center text-slate-400">
-                <span>Ukuran Logo:</span>
-                <span className="font-mono text-white font-medium">{logoSize}px</span>
+            <div className="space-y-3 pt-3 border-t border-slate-800">
+              <div className="flex justify-between items-center text-slate-300">
+                <span className="font-medium">Proporsi Ukuran Logo:</span>
+                <div className="flex items-center gap-2">
+                  <span className="font-mono text-white font-semibold text-xs">{logoSize || 80}px</span>
+                  <button
+                    type="button"
+                    onClick={() => onLogoSizeChange(80)}
+                    className={`text-[10px] px-2 py-0.5 rounded-full border transition-all ${
+                      (logoSize || 80) === 80
+                        ? 'bg-blue-600/30 border-blue-400 text-blue-200 font-semibold'
+                        : 'bg-slate-800 border-slate-700 text-slate-400 hover:text-white'
+                    }`}
+                    title="Set ukuran seimbang 1:1 dengan kompas"
+                  >
+                    Proporsional Kompas (80px)
+                  </button>
+                </div>
               </div>
+
               <input
                 type="range"
                 min="50"
                 max="130"
                 step="5"
-                value={logoSize}
+                value={logoSize || 80}
                 onChange={(e) => onLogoSizeChange(Number(e.target.value))}
                 className="w-full accent-blue-500 cursor-pointer"
               />
+
+              {/* Side-by-side Visual Proportional Balance Preview */}
+              <div className="p-3 bg-slate-950/80 rounded-xl border border-slate-800/80">
+                <div className="text-[10px] text-slate-400 mb-2 flex items-center justify-between">
+                  <span>Pratinjau Keseimbangan (Kompas vs Logo):</span>
+                  {(logoSize || 80) === 80 ? (
+                    <span className="text-emerald-400 font-medium">Seimbang 1:1</span>
+                  ) : (logoSize || 80) > 80 ? (
+                    <span className="text-amber-400 font-medium">Logo Lebih Besar</span>
+                  ) : (
+                    <span className="text-sky-400 font-medium">Logo Lebih Kecil</span>
+                  )}
+                </div>
+
+                <div className="flex items-center justify-around py-1">
+                  {/* Compass Representation */}
+                  <div className="flex flex-col items-center gap-1">
+                    <div
+                      className="rounded-full bg-slate-900 border-2 border-sky-400/80 shadow-md flex items-center justify-center relative overflow-hidden"
+                      style={{ width: '56px', height: '56px' }}
+                    >
+                      <Compass className="w-8 h-8 text-sky-400" />
+                      <div className="absolute inset-0 bg-radial from-transparent to-black/60 pointer-events-none" />
+                    </div>
+                    <span className="text-[10px] text-slate-400 font-mono">Kompas</span>
+                  </div>
+
+                  <span className="text-slate-600 font-bold text-sm">vs</span>
+
+                  {/* Scaled Logo Representation */}
+                  <div className="flex flex-col items-center gap-1">
+                    <div
+                      className="rounded-xl bg-slate-900 border border-slate-700 shadow-md flex items-center justify-center p-1.5 transition-all"
+                      style={{
+                        width: `${Math.round(56 * ((logoSize || 80) / 80))}px`,
+                        height: `${Math.round(56 * ((logoSize || 80) / 80))}px`,
+                      }}
+                    >
+                      <img
+                        src={logoUrl}
+                        alt="Preview Logo"
+                        className="w-full h-full object-contain filter drop-shadow-sm"
+                      />
+                    </div>
+                    <span className="text-[10px] text-slate-400 font-mono">Logo Kanan</span>
+                  </div>
+                </div>
+              </div>
             </div>
           )}
         </div>

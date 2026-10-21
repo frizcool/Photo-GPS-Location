@@ -31,6 +31,7 @@ import {
 import { StampLocation, StampSettings, TimezoneOption, SettingsPreset, StampPlacement } from '../types/stamp';
 import { PRESET_LOCATIONS, reverseGeocode, formatIndonesianDate } from '../utils/geo';
 import { FontStyleSelector } from './FontStyleSelector';
+import { PRESET_LOGOS } from '../utils/logoPresets';
 import {
   loadPresetsFromDatabase,
   savePresetToDatabase,
@@ -897,6 +898,129 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     className="w-4 h-4 text-blue-600 rounded-sm"
                   />
                 </label>
+
+                {/* Sub-controls when Logo is enabled */}
+                {settings.showLogo && (
+                  <div className="p-3 rounded-xl bg-slate-800/40 border border-slate-800/80 space-y-3">
+                    {/* Size and Proportionality Slider */}
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between text-[11px] text-slate-300">
+                        <span className="font-medium">Proporsi Ukuran Logo:</span>
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono text-sky-400 font-bold">{settings.logoSize || 80}px</span>
+                          <button
+                            type="button"
+                            onClick={() => onSettingsChange({ ...settings, logoSize: 80 })}
+                            className={`text-[10px] px-2 py-0.5 rounded-full border transition-all ${
+                              (settings.logoSize || 80) === 80
+                                ? 'bg-blue-600/30 border-blue-400 text-blue-200 font-semibold'
+                                : 'bg-slate-800 border-slate-700 text-slate-400 hover:text-white'
+                            }`}
+                            title="Samakan ukuran 1:1 dengan kompas"
+                          >
+                            Proporsional Kompas (80px)
+                          </button>
+                        </div>
+                      </div>
+                      <input
+                        type="range"
+                        min="50"
+                        max="130"
+                        step="5"
+                        value={settings.logoSize || 80}
+                        onChange={(e) =>
+                          onSettingsChange({
+                            ...settings,
+                            logoSize: parseInt(e.target.value, 10),
+                          })
+                        }
+                        className="w-full accent-blue-500 cursor-pointer h-1.5"
+                      />
+                    </div>
+
+                    {/* Visual 1:1 Proportion Preview */}
+                    <div className="p-2.5 bg-slate-900/90 rounded-xl border border-slate-800">
+                      <div className="flex items-center justify-between text-[10px] text-slate-400 mb-2">
+                        <span>Keseimbangan Kompas vs Logo:</span>
+                        {(settings.logoSize || 80) === 80 ? (
+                          <span className="text-emerald-400 font-semibold">1:1 Seimbang Sempurna</span>
+                        ) : (settings.logoSize || 80) > 80 ? (
+                          <span className="text-amber-400">Logo Lebih Besar</span>
+                        ) : (
+                          <span className="text-sky-400">Logo Lebih Kecil</span>
+                        )}
+                      </div>
+                      <div className="flex items-center justify-around py-1">
+                        <div className="flex flex-col items-center gap-1">
+                          <div className="w-12 h-12 rounded-full bg-slate-950 border-2 border-sky-400/80 shadow-md flex items-center justify-center relative overflow-hidden">
+                            <Compass className="w-6 h-6 text-sky-400" />
+                          </div>
+                          <span className="text-[10px] text-slate-400">Kompas Kiri</span>
+                        </div>
+                        <span className="text-slate-600 font-bold text-xs">vs</span>
+                        <div className="flex flex-col items-center gap-1">
+                          <div
+                            className="rounded-lg bg-slate-950 border border-slate-700 shadow-md flex items-center justify-center p-1 transition-all"
+                            style={{
+                              width: `${Math.round(48 * ((settings.logoSize || 80) / 80))}px`,
+                              height: `${Math.round(48 * ((settings.logoSize || 80) / 80))}px`,
+                            }}
+                          >
+                            {settings.logoUrl ? (
+                              <img
+                                src={settings.logoUrl}
+                                alt="Logo"
+                                className="w-full h-full object-contain filter drop-shadow-sm"
+                              />
+                            ) : (
+                              <User className="w-5 h-5 text-slate-500" />
+                            )}
+                          </div>
+                          <span className="text-[10px] text-slate-400">Logo Kanan</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Quick Preset Selector */}
+                    <div className="space-y-1.5">
+                      <span className="text-[10px] text-slate-400 block font-medium">
+                        Pilih Preset Logo Siap Pakai:
+                      </span>
+                      <div className="grid grid-cols-2 gap-1.5">
+                        {PRESET_LOGOS.map((preset) => {
+                          const isSelected = settings.logoUrl === preset.dataUrl;
+                          return (
+                            <button
+                              key={preset.id}
+                              type="button"
+                              onClick={() =>
+                                onSettingsChange({
+                                  ...settings,
+                                  logoUrl: preset.dataUrl,
+                                  showLogo: true,
+                                })
+                              }
+                              className={`p-1.5 rounded-lg border text-left flex items-center gap-2 transition-all ${
+                                isSelected
+                                  ? 'border-blue-500 bg-blue-950/40 text-blue-200'
+                                  : 'border-slate-800 bg-slate-800/40 hover:bg-slate-800 text-slate-300'
+                              }`}
+                            >
+                              <img
+                                src={preset.dataUrl}
+                                alt={preset.name}
+                                className="w-5 h-5 shrink-0 object-contain"
+                              />
+                              <span className="truncate text-[10px] text-white">
+                                {preset.name}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                )}
                 {/* GAYA KOMPAS */}
                 <div className="space-y-1.5 pt-2 border-t border-slate-800">
                   <label className="block text-slate-300 font-semibold text-xs flex items-center gap-1.5">

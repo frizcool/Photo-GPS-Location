@@ -83,11 +83,12 @@ export const TimestampOverlay: React.FC<TimestampOverlayProps> = ({
   const isRight = placement.endsWith('right');
 
   // 1. Compass Dial Node
+  const compassDialSize = 84;
   const compassNode = settings.showCompass ? (
     <div className="pointer-events-auto">
       <CompassDial
         heading={location.heading ?? 348}
-        size={92}
+        size={compassDialSize}
         interactive={true}
         styleVariant={settings.compassStyle || 'reference'}
         onHeadingChange={onHeadingChange}
@@ -95,17 +96,19 @@ export const TimestampOverlay: React.FC<TimestampOverlayProps> = ({
     </div>
   ) : null;
 
-  // 2. Logo Node
+  // 2. Logo Node (Proportionally matched with Compass Dial)
+  const logoBoxDim = Math.round(compassDialSize * ((settings.logoSize || 80) / 80));
   const logoNode = settings.showLogo ? (
     <div className="pointer-events-auto relative group">
       {settings.logoUrl ? (
         <div
           onClick={onOpenLogoPicker}
           className="relative cursor-pointer transition-transform active:scale-95 flex items-center justify-center p-0 bg-transparent border-0 shadow-none"
-          title="Klik untuk mengganti logo"
+          title="Klik untuk mengganti logo atau sesuaikan ukuran"
           style={{
-            width: `${settings.logoSize || 80}px`,
-            height: `${settings.logoSize || 80}px`,
+            width: `${logoBoxDim}px`,
+            height: `${logoBoxDim}px`,
+            maxWidth: `${Math.round(logoBoxDim * 1.4)}px`,
           }}
         >
           <img

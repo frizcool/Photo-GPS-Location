@@ -57,7 +57,7 @@ const INITIAL_SETTINGS: StampSettings = {
   watermarkNote: '',
   showLogo: true,
   logoUrl: PRESET_LOGOS[0].dataUrl, // Hospital / Medical Cross logo preset
-  logoSize: 75,
+  logoSize: 80,
   locationMode: 'custom', // 2 options: 'device' (GPS asli) or 'custom' (bebas edit/preset)
   dateFormat: 'DD/MM/YYYY', // Reference image date format
   timeFormat: '24h',

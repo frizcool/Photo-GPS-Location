@@ -340,7 +340,7 @@ function drawVectorFallbackMap(
 }
 
 /**
- * Draws the Top-Right Logo with subtle drop shadow
+ * Draws the Custom Logo with drop shadow, proportionally calibrated to match the Compass Dial
  */
 export function drawLogo(
   ctx: CanvasRenderingContext2D,
@@ -349,54 +349,60 @@ export function drawLogo(
   baseUnit: number,
   customSize: number = 80,
   targetHeight: number = targetWidth,
-  corner: 'top-right' | 'top-left' | 'bottom-right' | 'bottom-left' = 'top-right'
+  corner: 'top-right' | 'top-left' | 'bottom-right' | 'bottom-left' = 'top-right',
+  referenceDiameter?: number,
+  marginOffset?: number
 ) {
   ctx.save();
-  // Calculate size proportional to output canvas
-  const sizeRatio = Math.max(0.08, Math.min(0.2, customSize / 650));
-  const logoW = Math.round(baseUnit * sizeRatio);
-  const logoH = logoW; // Square aspect container
-  const margin = Math.round(baseUnit * 0.04);
+  // Calibrated size: at default customSize = 80, the logo bounding dimension matches the compass dial diameter (1:1 proportion)
+  const compassDialDim = referenceDiameter || Math.round(baseUnit * 0.144);
+  const sizeRatio = (customSize || 80) / 80;
+  const baseDim = Math.round(compassDialDim * sizeRatio);
+  const margin = marginOffset !== undefined ? marginOffset : Math.round(baseUnit * 0.038);
 
-  let x = targetWidth - margin - logoW;
-  let y = margin;
+  // Subtle drop shadow matching preview
+  ctx.shadowColor = 'rgba(0, 0, 0, 0.7)';
+  ctx.shadowBlur = Math.max(4, Math.round(baseUnit * 0.007));
+  ctx.shadowOffsetX = 1;
+  ctx.shadowOffsetY = Math.max(2, Math.round(baseUnit * 0.003));
+
+  // Aspect fit the logo image inside the proportional box
+  const imgW = logoImg.naturalWidth || baseDim;
+  const imgH = logoImg.naturalHeight || baseDim;
+  const imgAspect = imgW / (imgH || 1);
+
+  let drawW = baseDim;
+  let drawH = baseDim;
+
+  if (imgAspect > 1.05) {
+    // Landscape logo (wider): keep height visually balanced with the compass dial while allowing proportional width
+    drawH = Math.min(baseDim, Math.round(baseDim / Math.sqrt(imgAspect)));
+    drawW = Math.min(Math.round(baseDim * 1.4), Math.round(drawH * imgAspect));
+  } else if (imgAspect < 0.95) {
+    // Portrait logo (taller): fit height and scale width
+    drawH = baseDim;
+    drawW = Math.round(baseDim * imgAspect);
+  } else {
+    // Square or circular badge (1:1 match with compass dial)
+    drawW = baseDim;
+    drawH = baseDim;
+  }
+
+  let x = targetWidth - margin - drawW;
+  let y = margin + Math.round((baseDim - drawH) / 2);
 
   if (corner === 'bottom-right') {
-    x = targetWidth - margin - logoW;
-    y = targetHeight - margin - logoH;
+    x = targetWidth - margin - drawW;
+    y = targetHeight - margin - baseDim + Math.round((baseDim - drawH) / 2);
   } else if (corner === 'bottom-left') {
     x = margin;
-    y = targetHeight - margin - logoH;
+    y = targetHeight - margin - baseDim + Math.round((baseDim - drawH) / 2);
   } else if (corner === 'top-left') {
     x = margin;
-    y = margin;
+    y = margin + Math.round((baseDim - drawH) / 2);
   }
 
-  // Drop shadow
-  ctx.shadowColor = 'rgba(0, 0, 0, 0.6)';
-  ctx.shadowBlur = 6;
-  ctx.shadowOffsetX = 1;
-  ctx.shadowOffsetY = 2;
-
-  // Aspect fit the logo image inside the box
-  const imgW = logoImg.naturalWidth || logoW;
-  const imgH = logoImg.naturalHeight || logoH;
-  const imgAspect = imgW / imgH;
-
-  let drawW = logoW;
-  let drawH = logoH;
-  let drawX = x;
-  let drawY = y;
-
-  if (imgAspect > 1) {
-    drawH = logoW / imgAspect;
-    drawY = y + (logoH - drawH) / 2;
-  } else {
-    drawW = logoH * imgAspect;
-    drawX = x + (logoW - drawW) / 2;
-  }
-
-  ctx.drawImage(logoImg, drawX, drawY, drawW, drawH);
+  ctx.drawImage(logoImg, x, y, drawW, drawH);
   ctx.restore();
 }
 
@@ -544,40 +550,63 @@ export async function createStampedImage(
 
   const placement = settings.stampPlacement || 'bottom-right';
 
-  // 2. Draw Compass
+  // 2. Compass & Logo Proportional Dimensions
+  // Both act as header corner badges with matching visual scale and aligned margins
+  const compassRadius = Math.round(baseUnit * 0.072); // ~14.4% diameter
+  const compassDiameter = compassRadius * 2;
+  const topCornerMargin = Math.round(baseUnit * 0.038);
+
+  // Draw Compass Dial
   if (settings.showCompass) {
-    const compassRadius = baseUnit * 0.11;
-    const compassMargin = baseUnit * 0.04;
-    let compX = compassMargin + compassRadius;
-    let compY = compassMargin + compassRadius;
+    let compX = topCornerMargin + compassRadius;
+    let compY = topCornerMargin + compassRadius;
 
     if (placement === 'top-left') {
-      compX = targetWidth - compassMargin - compassRadius;
-      compY = compassMargin + compassRadius;
+      compX = targetWidth - topCornerMargin - compassRadius;
+      compY = topCornerMargin + compassRadius;
     }
 
     const heading = location.heading ?? 348;
     drawCompass(ctx, compX, compY, compassRadius, heading);
   }
 
-  // 3. Draw Logo if configured
-  if (settings.showLogo && logoImage && logoImage.complete && logoImage.naturalWidth > 0) {
-    let logoCorner: 'top-right' | 'top-left' | 'bottom-right' | 'bottom-left' = 'top-right';
-    if (placement === 'top-right') {
-      logoCorner = 'bottom-right';
-    } else if (placement === 'top-left') {
-      logoCorner = 'bottom-left';
+  // 3. Draw Logo with exact proportional sizing matching the Compass Dial
+  if (settings.showLogo) {
+    let activeLogo = logoImage;
+    if ((!activeLogo || !activeLogo.complete || activeLogo.naturalWidth === 0) && settings.logoUrl) {
+      try {
+        activeLogo = await new Promise<HTMLImageElement>((resolve, reject) => {
+          const img = new Image();
+          img.crossOrigin = 'anonymous';
+          img.onload = () => resolve(img);
+          img.onerror = reject;
+          img.src = settings.logoUrl!;
+        });
+      } catch (err) {
+        console.warn('Could not load logo for canvas stamp:', err);
+      }
     }
 
-    drawLogo(
-      ctx,
-      logoImage,
-      targetWidth,
-      baseUnit,
-      settings.logoSize || 80,
-      targetHeight,
-      logoCorner
-    );
+    if (activeLogo && activeLogo.naturalWidth > 0) {
+      let logoCorner: 'top-right' | 'top-left' | 'bottom-right' | 'bottom-left' = 'top-right';
+      if (placement === 'top-right') {
+        logoCorner = 'bottom-right';
+      } else if (placement === 'top-left') {
+        logoCorner = 'bottom-left';
+      }
+
+      drawLogo(
+        ctx,
+        activeLogo,
+        targetWidth,
+        baseUnit,
+        settings.logoSize || 80,
+        targetHeight,
+        logoCorner,
+        compassDiameter,
+        topCornerMargin
+      );
+    }
   }
 
   // 4. Draw Mini Map with opacity
