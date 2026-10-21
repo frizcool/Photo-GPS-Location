@@ -1,8 +1,9 @@
 import { StampLocation, StampSettings, ImageAdjustment } from '../types/stamp';
 import { formatCoordinates, formatIndonesianDate } from './geo';
+import { getFontStyleOption } from './fontStyles';
 
 /**
- * Draws the enhanced Compass Dial with graduation ticks and 3D dual-tone needle.
+ * Draws the reference-matched Compass Dial with dark circular ring, bold cardinal letters, and vivid cyan needle.
  */
 export function drawCompass(
   ctx: CanvasRenderingContext2D,
@@ -12,28 +13,37 @@ export function drawCompass(
   headingDeg: number
 ) {
   ctx.save();
+  const normalizedHeading = Math.round(((headingDeg % 360) + 360) % 360);
 
-  // Glassmorphic dark circular disc with subtle outer border
+  // 1. Outer Dark Circular Disc / Ring
   ctx.beginPath();
   ctx.arc(cx, cy, radius, 0, Math.PI * 2);
-  const grad = ctx.createRadialGradient(cx - radius * 0.3, cy - radius * 0.3, radius * 0.1, cx, cy, radius);
-  grad.addColorStop(0, 'rgba(45, 55, 72, 0.8)');
-  grad.addColorStop(1, 'rgba(15, 23, 42, 0.9)');
+  const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, radius);
+  grad.addColorStop(0, 'rgba(15, 23, 42, 0.78)');
+  grad.addColorStop(0.7, 'rgba(30, 41, 59, 0.88)');
+  grad.addColorStop(1, 'rgba(15, 23, 42, 0.95)');
   ctx.fillStyle = grad;
   ctx.fill();
 
-  ctx.lineWidth = Math.max(1.5, radius * 0.05);
-  ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+  ctx.lineWidth = Math.max(1.5, radius * 0.04);
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.45)';
   ctx.stroke();
 
-  // Graduation Tick Marks (every 15 degrees)
+  // 2. Inner Track Ring Groove
+  ctx.beginPath();
+  ctx.arc(cx, cy, radius * 0.72, 0, Math.PI * 2);
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.22)';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+
+  // 3. Graduation Tick Marks (every 15 degrees)
   ctx.save();
   for (let angle = 0; angle < 360; angle += 15) {
     const isMajor = angle % 90 === 0;
     const isMedium = angle % 45 === 0;
     const rad = (angle * Math.PI) / 180;
-    const rInner = isMajor ? radius * 0.76 : isMedium ? radius * 0.82 : radius * 0.86;
-    const rOuter = radius * 0.92;
+    const rInner = isMajor ? radius * 0.82 : isMedium ? radius * 0.86 : radius * 0.9;
+    const rOuter = radius * 0.97;
 
     const x1 = cx + rInner * Math.sin(rad);
     const y1 = cy - rInner * Math.cos(rad);
@@ -43,40 +53,36 @@ export function drawCompass(
     ctx.beginPath();
     ctx.moveTo(x1, y1);
     ctx.lineTo(x2, y2);
-    ctx.strokeStyle = isMajor ? 'rgba(255, 255, 255, 0.9)' : isMedium ? '#93c5fd' : 'rgba(148, 163, 184, 0.6)';
-    ctx.lineWidth = isMajor ? Math.max(1.5, radius * 0.04) : 1;
+    ctx.strokeStyle = isMajor ? '#ffffff' : isMedium ? '#7dd3fc' : 'rgba(255, 255, 255, 0.4)';
+    ctx.lineWidth = isMajor ? Math.max(1.8, radius * 0.035) : 1;
     ctx.stroke();
   }
   ctx.restore();
 
-  // Draw Cardinal Letters (Fixed to dial)
+  // 4. Cardinal Letters (N, E, S, W in crisp bold white inside ring track)
   ctx.fillStyle = '#ffffff';
-  ctx.font = `bold ${Math.round(radius * 0.3)}px sans-serif`;
+  ctx.font = `bold ${Math.round(radius * 0.26)}px system-ui, -apple-system, sans-serif`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
 
-  // N (North)
-  ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
+  ctx.shadowColor = 'rgba(0, 0, 0, 0.9)';
   ctx.shadowBlur = 3;
-  ctx.fillText('N', cx, cy - radius * 0.65);
-  // S (South)
-  ctx.fillText('S', cx, cy + radius * 0.67);
-  // E (East)
-  ctx.fillText('E', cx + radius * 0.65, cy);
-  // W (West)
-  ctx.fillText('W', cx - radius * 0.65, cy);
+  ctx.fillText('N', cx, cy - radius * 0.58);
+  ctx.fillText('S', cx, cy + radius * 0.6);
+  ctx.fillText('E', cx + radius * 0.58, cy);
+  ctx.fillText('W', cx - radius * 0.58, cy);
   ctx.shadowBlur = 0;
 
-  // Rotate Needle based on heading
+  // 5. Rotate Cyan Needle based on heading
   ctx.save();
   ctx.translate(cx, cy);
   const needleRad = ((-headingDeg) * Math.PI) / 180;
   ctx.rotate(needleRad);
 
-  // North needle left side (Bright Cyan)
+  // North needle left side (Vivid Cyan)
   ctx.beginPath();
-  ctx.moveTo(0, -radius * 0.76);
-  ctx.lineTo(-radius * 0.2, 0);
+  ctx.moveTo(0, -radius * 0.72);
+  ctx.lineTo(-radius * 0.16, 0);
   ctx.lineTo(0, -radius * 0.08);
   ctx.closePath();
   ctx.fillStyle = '#38bdf8';
@@ -84,8 +90,8 @@ export function drawCompass(
 
   // North needle right side (Royal Blue)
   ctx.beginPath();
-  ctx.moveTo(0, -radius * 0.76);
-  ctx.lineTo(radius * 0.2, 0);
+  ctx.moveTo(0, -radius * 0.72);
+  ctx.lineTo(radius * 0.16, 0);
   ctx.lineTo(0, -radius * 0.08);
   ctx.closePath();
   ctx.fillStyle = '#0284c7';
@@ -93,33 +99,33 @@ export function drawCompass(
 
   // North needle highlight sheen
   ctx.beginPath();
-  ctx.moveTo(0, -radius * 0.76);
-  ctx.lineTo(-radius * 0.08, -radius * 0.3);
-  ctx.lineTo(0, -radius * 0.1);
+  ctx.moveTo(0, -radius * 0.72);
+  ctx.lineTo(-radius * 0.06, -radius * 0.35);
+  ctx.lineTo(0, -radius * 0.12);
   ctx.closePath();
-  ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
   ctx.fill();
 
-  // South needle (Silver / Slate)
+  // South needle (Light & Dark Slate)
   ctx.beginPath();
-  ctx.moveTo(0, radius * 0.65);
-  ctx.lineTo(-radius * 0.16, 0);
+  ctx.moveTo(0, radius * 0.62);
+  ctx.lineTo(-radius * 0.14, 0);
   ctx.lineTo(0, radius * 0.06);
   ctx.closePath();
   ctx.fillStyle = '#cbd5e1';
   ctx.fill();
 
   ctx.beginPath();
-  ctx.moveTo(0, radius * 0.65);
-  ctx.lineTo(radius * 0.16, 0);
+  ctx.moveTo(0, radius * 0.62);
+  ctx.lineTo(radius * 0.14, 0);
   ctx.lineTo(0, radius * 0.06);
   ctx.closePath();
   ctx.fillStyle = '#64748b';
   ctx.fill();
 
-  // Metallic Center Pivot
+  // Center Metallic Pivot
   ctx.beginPath();
-  ctx.arc(0, 0, radius * 0.14, 0, Math.PI * 2);
+  ctx.arc(0, 0, radius * 0.13, 0, Math.PI * 2);
   ctx.fillStyle = '#0f172a';
   ctx.fill();
   ctx.lineWidth = 1.5;
@@ -127,11 +133,39 @@ export function drawCompass(
   ctx.stroke();
 
   ctx.beginPath();
-  ctx.arc(0, 0, radius * 0.07, 0, Math.PI * 2);
+  ctx.arc(0, 0, radius * 0.065, 0, Math.PI * 2);
   ctx.fillStyle = '#38bdf8';
   ctx.fill();
 
   ctx.restore();
+
+  // 6. Degree and Direction Pill Badge under compass
+  const dirNames = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+  const dirIdx = Math.round(normalizedHeading / 45) % 8;
+  const dirText = dirNames[dirIdx];
+
+  const pillText = `${normalizedHeading}° ${dirText}`;
+  ctx.font = `600 ${Math.max(10, Math.round(radius * 0.22))}px monospace`;
+  const badgeWidth = ctx.measureText(pillText).width + radius * 0.25;
+  const badgeHeight = Math.max(14, radius * 0.32);
+  const badgeY = cy + radius * 1.08;
+
+  ctx.fillStyle = 'rgba(15, 23, 42, 0.85)';
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  const rad = 6;
+  const bx = cx - badgeWidth / 2;
+  const by = badgeY;
+  ctx.roundRect ? ctx.roundRect(bx, by, badgeWidth, badgeHeight, rad) : ctx.rect(bx, by, badgeWidth, badgeHeight);
+  ctx.fill();
+  ctx.stroke();
+
+  ctx.fillStyle = '#7dd3fc';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(pillText, cx, by + badgeHeight / 2);
+
   ctx.restore();
 }
 
@@ -313,7 +347,9 @@ export function drawLogo(
   logoImg: HTMLImageElement,
   targetWidth: number,
   baseUnit: number,
-  customSize: number = 80
+  customSize: number = 80,
+  targetHeight: number = targetWidth,
+  corner: 'top-right' | 'top-left' | 'bottom-right' | 'bottom-left' = 'top-right'
 ) {
   ctx.save();
   // Calculate size proportional to output canvas
@@ -321,8 +357,20 @@ export function drawLogo(
   const logoW = Math.round(baseUnit * sizeRatio);
   const logoH = logoW; // Square aspect container
   const margin = Math.round(baseUnit * 0.04);
-  const x = targetWidth - margin - logoW;
-  const y = margin;
+
+  let x = targetWidth - margin - logoW;
+  let y = margin;
+
+  if (corner === 'bottom-right') {
+    x = targetWidth - margin - logoW;
+    y = targetHeight - margin - logoH;
+  } else if (corner === 'bottom-left') {
+    x = margin;
+    y = targetHeight - margin - logoH;
+  } else if (corner === 'top-left') {
+    x = margin;
+    y = margin;
+  }
 
   // Drop shadow
   ctx.shadowColor = 'rgba(0, 0, 0, 0.6)';
@@ -472,6 +520,11 @@ export async function createStampedImage(
     drawHeight = sourceHeight * scaleFactor * zoom;
   }
 
+  // Night Mode: apply low-light exposure and contrast boost to image
+  if (settings.nightMode) {
+    ctx.filter = 'brightness(1.35) contrast(1.18) saturate(1.1)';
+  }
+
   ctx.drawImage(
     imageSource,
     baseSx,
@@ -484,29 +537,58 @@ export async function createStampedImage(
     drawHeight
   );
 
+  ctx.filter = 'none';
   ctx.restore();
 
   const baseUnit = Math.min(targetWidth, targetHeight);
 
-  // 2. Draw Compass (Top-Left)
+  const placement = settings.stampPlacement || 'bottom-right';
+
+  // 2. Draw Compass
   if (settings.showCompass) {
     const compassRadius = baseUnit * 0.11;
     const compassMargin = baseUnit * 0.04;
-    const compX = compassMargin + compassRadius;
-    const compY = compassMargin + compassRadius;
+    let compX = compassMargin + compassRadius;
+    let compY = compassMargin + compassRadius;
+
+    if (placement === 'top-left') {
+      compX = targetWidth - compassMargin - compassRadius;
+      compY = compassMargin + compassRadius;
+    }
+
     const heading = location.heading ?? 348;
     drawCompass(ctx, compX, compY, compassRadius, heading);
   }
 
-  // 3. Draw Top-Right Logo if configured
+  // 3. Draw Logo if configured
   if (settings.showLogo && logoImage && logoImage.complete && logoImage.naturalWidth > 0) {
-    drawLogo(ctx, logoImage, targetWidth, baseUnit, settings.logoSize || 80);
+    let logoCorner: 'top-right' | 'top-left' | 'bottom-right' | 'bottom-left' = 'top-right';
+    if (placement === 'top-right') {
+      logoCorner = 'bottom-right';
+    } else if (placement === 'top-left') {
+      logoCorner = 'bottom-left';
+    }
+
+    drawLogo(
+      ctx,
+      logoImage,
+      targetWidth,
+      baseUnit,
+      settings.logoSize || 80,
+      targetHeight,
+      logoCorner
+    );
   }
 
-  // 4. Draw Mini Map (Bottom-Left) with opacity
+  // 4. Draw Mini Map with opacity
   const mapSize = baseUnit * 0.28;
-  const mapX = 0;
-  const mapY = targetHeight - mapSize;
+  let mapX = 0;
+  let mapY = targetHeight - mapSize;
+
+  if (placement === 'bottom-left' || placement === 'top-left') {
+    mapX = targetWidth - mapSize;
+    mapY = targetHeight - mapSize;
+  }
 
   if (settings.showMap) {
     await drawMiniMap(
@@ -521,20 +603,32 @@ export async function createStampedImage(
     );
   }
 
-  // 5. Draw Timestamp & Address Lines (Bottom-Right)
+  // 5. Draw Timestamp & Address Lines (Corner-Aware)
   const lines: string[] = [];
+
+  // Optional Custom Header
+  if (settings.customHeader?.trim()) {
+    lines.push(settings.customHeader.trim());
+  }
 
   const now = new Date();
   const timeStr = formatIndonesianDate(
     now,
     settings.timezone,
     settings.useRealTime ? undefined : settings.customTime,
-    settings.useRealTime ? undefined : settings.customDate
+    settings.useRealTime ? undefined : settings.customDate,
+    {
+      dateFormat: settings.dateFormat,
+      timeFormat: settings.timeFormat,
+      showDayName: settings.showDayName,
+    }
   );
   lines.push(timeStr);
 
   if (settings.showCoordinates) {
-    lines.push(formatCoordinates(location.latitude, location.longitude, true));
+    lines.push(
+      formatCoordinates(location.latitude, location.longitude, true, settings.coordinateFormat)
+    );
   }
 
   if (settings.showAddress) {
@@ -543,6 +637,11 @@ export async function createStampedImage(
     if (location.district) lines.push(location.district);
     if (location.city) lines.push(location.city);
     if (location.province) lines.push(location.province);
+  }
+
+  // Optional Custom Subtext / Additional Text
+  if (settings.customSubtext?.trim()) {
+    lines.push(settings.customSubtext.trim());
   }
 
   if (settings.watermarkNote) {
@@ -564,25 +663,73 @@ export async function createStampedImage(
     const fontSize = Math.max(14, Math.round(baseUnit * fontSizeMultiplier));
     const lineHeight = fontSize * 1.35;
 
-    ctx.font = `500 ${fontSize}px system-ui, -apple-system, "Segoe UI", Roboto, sans-serif`;
-    ctx.textAlign = 'right';
+    const fontOption = getFontStyleOption(settings.fontFamily);
+    const fontFamilyName = fontOption.canvasFont;
+
+    ctx.font = `600 ${fontSize}px ${fontFamilyName}`;
+
+    const isBottom = placement.startsWith('bottom');
+    const isRight = placement.endsWith('right');
+
+    ctx.textAlign = isRight ? 'right' : 'left';
     ctx.textBaseline = 'bottom';
 
-    const rightMargin = targetWidth * 0.035;
-    const bottomMargin = targetHeight * 0.035;
+    const marginH = targetWidth * 0.035;
+    const marginV = targetHeight * 0.035;
+    const textX = isRight ? targetWidth - marginH : marginH;
 
-    lines.reverse().forEach((line, index) => {
-      const lineY = targetHeight - bottomMargin - index * lineHeight;
+    // Night Mode: Render high-contrast backdrop behind text if active
+    if (settings.nightMode) {
+      let maxLineWidth = 0;
+      lines.forEach((l) => {
+        const w = ctx.measureText(l).width;
+        if (w > maxLineWidth) maxLineWidth = w;
+      });
 
-      if (settings.textShadow) {
-        ctx.shadowColor = 'rgba(0, 0, 0, 0.85)';
-        ctx.shadowBlur = 4;
+      const padX = fontSize * 0.8;
+      const padY = fontSize * 0.6;
+      const boxWidth = maxLineWidth + padX * 2;
+      const boxHeight = lines.length * lineHeight + padY * 2;
+      const boxX = isRight
+        ? targetWidth - marginH - maxLineWidth - padX
+        : marginH - padX;
+      const boxY = isBottom
+        ? targetHeight - marginV - (lines.length - 1) * lineHeight - fontSize - padY
+        : marginV - padY;
+
+      ctx.save();
+      ctx.fillStyle =
+        settings.nightModeContrast === 'ultra'
+          ? 'rgba(0, 0, 0, 0.88)'
+          : 'rgba(5, 10, 20, 0.72)';
+      ctx.beginPath();
+      // Rounded rect
+      const radius = 10;
+      ctx.roundRect ? ctx.roundRect(boxX, boxY, boxWidth, boxHeight, radius) : ctx.rect(boxX, boxY, boxWidth, boxHeight);
+      ctx.fill();
+      ctx.strokeStyle = settings.nightModeContrast === 'ultra' ? 'rgba(255, 255, 255, 0.35)' : 'rgba(56, 189, 248, 0.35)';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    // Top-to-bottom line rendering for all placements
+    const startY = isBottom
+      ? targetHeight - marginV - (lines.length - 1) * lineHeight
+      : marginV + fontSize;
+
+    lines.forEach((line, index) => {
+      const lineY = startY + index * lineHeight;
+
+      if (settings.textShadow || settings.nightMode) {
+        ctx.shadowColor = settings.nightMode ? 'rgba(0, 0, 0, 0.95)' : 'rgba(0, 0, 0, 0.85)';
+        ctx.shadowBlur = settings.nightMode ? 6 : 4;
         ctx.shadowOffsetX = 1;
         ctx.shadowOffsetY = 1;
       }
 
       ctx.fillStyle = settings.textColor || '#ffffff';
-      ctx.fillText(line, targetWidth - rightMargin, lineY);
+      ctx.fillText(line, textX, lineY);
     });
 
     ctx.restore();

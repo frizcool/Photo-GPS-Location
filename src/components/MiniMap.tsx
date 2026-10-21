@@ -36,6 +36,11 @@ export const MiniMap: React.FC<MiniMapProps> = ({
   // Using reliable high-speed tiles (CartoDB Positron / OSM standard)
   const tileUrl = `https://tile.openstreetmap.org/${currentZoom}/${tileX}/${tileY}.png`;
 
+  const onImageReadyRef = useRef(onImageReady);
+  useEffect(() => {
+    onImageReadyRef.current = onImageReady;
+  });
+
   useEffect(() => {
     setLoadError(false);
     const img = new Image();
@@ -43,12 +48,12 @@ export const MiniMap: React.FC<MiniMapProps> = ({
     img.src = tileUrl;
     img.onload = () => {
       imgRef.current = img;
-      if (onImageReady) onImageReady(img);
+      onImageReadyRef.current?.(img);
     };
     img.onerror = () => {
       setLoadError(true);
     };
-  }, [tileUrl, onImageReady]);
+  }, [tileUrl]);
 
   return (
     <div

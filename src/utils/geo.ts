@@ -113,7 +113,28 @@ export const PRESET_LOCATIONS: { name: string; location: StampLocation }[] = [
   },
 ];
 
-export function formatCoordinates(lat: number, lon: number, useComma = true): string {
+export function formatCoordinatesDMS(lat: number, lon: number): string {
+  const formatSingle = (val: number, isLat: boolean) => {
+    const dir = isLat ? (val >= 0 ? 'N' : 'S') : (val >= 0 ? 'E' : 'W');
+    const abs = Math.abs(val);
+    const deg = Math.floor(abs);
+    const minFloat = (abs - deg) * 60;
+    const min = Math.floor(minFloat);
+    const sec = ((minFloat - min) * 60).toFixed(1);
+    return `${deg}°${min}'${sec}" ${dir}`;
+  };
+  return `${formatSingle(lat, true)} ${formatSingle(lon, false)}`;
+}
+
+export function formatCoordinates(
+  lat: number,
+  lon: number,
+  useComma = true,
+  format: 'decimal' | 'dms' = 'decimal'
+): string {
+  if (format === 'dms') {
+    return formatCoordinatesDMS(lat, lon);
+  }
   const latStr = lat.toFixed(6);
   const lonStr = lon.toFixed(6);
   if (useComma) {
@@ -122,11 +143,18 @@ export function formatCoordinates(lat: number, lon: number, useComma = true): st
   return `${latStr} ${lonStr}`;
 }
 
+export interface DateFormatOptions {
+  dateFormat?: 'full_id' | 'DD/MM/YYYY' | 'MM/DD/YYYY' | 'YYYY-MM-DD';
+  timeFormat?: '24h' | '12h';
+  showDayName?: boolean;
+}
+
 export function formatIndonesianDate(
   date: Date,
   timezone: string = 'WIB',
   overrideTime?: string,
-  overrideDate?: string
+  overrideDate?: string,
+  options?: DateFormatOptions
 ): string {
   let targetDate = new Date(date);
 
@@ -145,18 +173,28 @@ export function formatIndonesianDate(
   }
 
   const dayName = INDONESIA_DAYS[targetDate.getDay()];
-  const dayNum = targetDate.getDate();
+  const dayNum = String(targetDate.getDate()).padStart(2, '0');
+  const monthNum = String(targetDate.getMonth() + 1).padStart(2, '0');
   const monthName = INDONESIA_MONTHS[targetDate.getMonth()];
   const year = targetDate.getFullYear();
 
-  const hours = String(targetDate.getHours()).padStart(2, '0');
-  const minutes = String(targetDate.getMinutes()).padStart(2, '0');
-  const seconds = String(targetDate.getSeconds()).padStart(2, '0');
+  // Time handling (24h vs 12h AM/PM)
+  let hoursNum = targetDate.getHours();
+  const rawMinutes = String(targetDate.getMinutes()).padStart(2, '0');
+  const rawSeconds = String(targetDate.getSeconds()).padStart(2, '0');
+  let ampm = '';
+
+  if (options?.timeFormat === '12h') {
+    ampm = hoursNum >= 12 ? ' PM' : ' AM';
+    hoursNum = hoursNum % 12;
+    if (hoursNum === 0) hoursNum = 12;
+  }
+  const hours = String(hoursNum).padStart(2, '0');
+  const timeString = `${hours}:${rawMinutes}:${rawSeconds}${ampm}`;
 
   // Timezone label
   let tzLabel = timezone;
   if (timezone === 'AUTO') {
-    // Determine based on browser offset
     const offset = -targetDate.getTimezoneOffset() / 60;
     if (offset === 7) tzLabel = 'WIB';
     else if (offset === 8) tzLabel = 'WITA';
@@ -164,7 +202,20 @@ export function formatIndonesianDate(
     else tzLabel = `UTC${offset >= 0 ? '+' : ''}${offset}`;
   }
 
-  return `${dayName}, ${dayNum} ${monthName} ${year} ${hours}:${minutes}:${seconds} ${tzLabel}`;
+  // Date formatting
+  let datePart = `${targetDate.getDate()} ${monthName} ${year}`;
+  if (options?.dateFormat === 'DD/MM/YYYY') {
+    datePart = `${dayNum}/${monthNum}/${year}`;
+  } else if (options?.dateFormat === 'MM/DD/YYYY') {
+    datePart = `${monthNum}/${dayNum}/${year}`;
+  } else if (options?.dateFormat === 'YYYY-MM-DD') {
+    datePart = `${year}-${monthNum}-${dayNum}`;
+  }
+
+  const includeDay = options?.showDayName ?? true;
+  const prefix = includeDay ? `${dayName}, ` : '';
+
+  return `${prefix}${datePart} ${timeString} ${tzLabel}`;
 }
 
 // Reverse Geocoding helper via OpenStreetMap

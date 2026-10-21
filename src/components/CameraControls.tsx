@@ -10,6 +10,7 @@ import {
   Upload,
   MapPin,
   Navigation,
+  Moon,
 } from 'lucide-react';
 import { AspectRatio, SavedPhoto } from '../types/stamp';
 
@@ -30,6 +31,8 @@ interface CameraControlsProps {
   cityName: string;
   locationMode: 'device' | 'custom';
   onToggleLocationMode: () => void;
+  nightMode?: boolean;
+  onToggleNightMode?: () => void;
 }
 
 export const CameraControls: React.FC<CameraControlsProps> = ({
@@ -49,6 +52,8 @@ export const CameraControls: React.FC<CameraControlsProps> = ({
   cityName,
   locationMode,
   onToggleLocationMode,
+  nightMode = false,
+  onToggleNightMode,
 }) => {
   const uploadInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -156,6 +161,25 @@ export const CameraControls: React.FC<CameraControlsProps> = ({
           >
             <Grid3X3 className="w-3.5 h-3.5" />
           </button>
+
+          {/* Quick Night Mode Toggle Button */}
+          {onToggleNightMode && (
+            <button
+              type="button"
+              onClick={onToggleNightMode}
+              className={`flex items-center gap-1 px-2.5 py-1.5 rounded-full transition-all active:scale-95 ${
+                nightMode
+                  ? 'bg-indigo-600 text-white font-bold shadow-md ring-1 ring-indigo-400'
+                  : 'bg-white/10 hover:bg-white/20 text-white'
+              }`}
+              title="Mode Malam (Low-light Boost & High-contrast Overlay)"
+            >
+              <Moon className="w-3.5 h-3.5" />
+              <span className="text-[11px] hidden xs:inline sm:inline">
+                {nightMode ? 'Malam' : 'Normal'}
+              </span>
+            </button>
+          )}
         </div>
       </div>
 

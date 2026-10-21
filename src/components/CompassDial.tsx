@@ -5,6 +5,7 @@ interface CompassDialProps {
   heading: number;
   size?: number;
   interactive?: boolean;
+  styleVariant?: 'reference' | 'classic' | 'tactical';
   onHeadingChange?: (newHeading: number) => void;
 }
 
@@ -12,10 +13,11 @@ export const CompassDial: React.FC<CompassDialProps> = ({
   heading,
   size = 96,
   interactive = true,
+  styleVariant = 'reference',
   onHeadingChange,
 }) => {
   const dir = getHeadingDirection(heading);
-  const normalizedHeading = Math.round(heading % 360);
+  const normalizedHeading = Math.round(((heading % 360) + 360) % 360);
 
   // Generate 24 tick marks (every 15 degrees)
   const ticks = Array.from({ length: 24 }).map((_, i) => {
@@ -27,8 +29,8 @@ export const CompassDial: React.FC<CompassDialProps> = ({
 
   return (
     <div
-      className="relative select-none pointer-events-auto cursor-pointer group"
-      style={{ width: size, height: size }}
+      className="relative select-none pointer-events-auto cursor-pointer flex flex-col items-center group"
+      style={{ width: size }}
       title={`Kompas: ${normalizedHeading}° (${dir}) - Klik untuk putar arah`}
       onClick={() => {
         if (interactive && onHeadingChange) {
@@ -36,25 +38,60 @@ export const CompassDial: React.FC<CompassDialProps> = ({
         }
       }}
     >
-      {/* Outer Glow Ring & Glass Disc */}
+      {/* Compass Circular Dial */}
       <div
-        className="w-full h-full rounded-full flex items-center justify-center relative overflow-hidden shadow-2xl transition-all duration-200 border border-white/40"
+        className="w-full relative flex items-center justify-center rounded-full overflow-hidden transition-transform active:scale-95 duration-150"
         style={{
-          background:
-            'radial-gradient(circle at 35% 35%, rgba(45, 55, 72, 0.75) 0%, rgba(15, 23, 42, 0.85) 100%)',
-          backdropFilter: 'blur(4px)',
-          boxShadow: '0 8px 24px rgba(0, 0, 0, 0.5), inset 0 0 0 1px rgba(255, 255, 255, 0.25)',
+          height: size,
+          boxShadow: '0 8px 24px rgba(0, 0, 0, 0.55), inset 0 0 0 1px rgba(255, 255, 255, 0.35)',
         }}
       >
-        {/* Subtle Outer Graduation Ticks */}
-        <svg
-          viewBox="0 0 100 100"
-          className="absolute inset-0 w-full h-full pointer-events-none opacity-60"
-        >
+        {/* Reference Style: Dark Translucent Circular Bezel with Ring Track */}
+        <svg viewBox="0 0 100 100" className="w-full h-full absolute inset-0">
+          <defs>
+            {/* Dark Bezel Gradient */}
+            <radialGradient id="compassBgGrad" cx="50%" cy="50%" r="50%">
+              <stop offset="0%" stopColor="rgba(15, 23, 42, 0.75)" />
+              <stop offset="65%" stopColor="rgba(30, 41, 59, 0.85)" />
+              <stop offset="100%" stopColor="rgba(15, 23, 42, 0.95)" />
+            </radialGradient>
+            {/* Outer Ring Shadow */}
+            <linearGradient id="ringGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="rgba(255, 255, 255, 0.4)" />
+              <stop offset="100%" stopColor="rgba(255, 255, 255, 0.15)" />
+            </linearGradient>
+            {/* Cyan Needle Gradient */}
+            <linearGradient id="cyanNeedleGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="#38bdf8" />
+              <stop offset="100%" stopColor="#0284c7" />
+            </linearGradient>
+          </defs>
+
+          {/* Background Outer Ring & Bezel */}
+          <circle
+            cx="50"
+            cy="50"
+            r="48"
+            fill="url(#compassBgGrad)"
+            stroke="url(#ringGrad)"
+            strokeWidth="1.5"
+          />
+
+          {/* Inner Groove Line */}
+          <circle
+            cx="50"
+            cy="50"
+            r="35"
+            fill="rgba(15, 23, 42, 0.35)"
+            stroke="rgba(255, 255, 255, 0.2)"
+            strokeWidth="1"
+          />
+
+          {/* Subtle Graduation Ticks */}
           {ticks.map(({ angle, isMajor, isMedium }) => {
             const rad = (angle * Math.PI) / 180;
             const r1 = isMajor ? 41 : isMedium ? 43 : 45;
-            const r2 = 48;
+            const r2 = 47.5;
             const x1 = 50 + r1 * Math.sin(rad);
             const y1 = 50 - r1 * Math.cos(rad);
             const x2 = 50 + r2 * Math.sin(rad);
@@ -67,82 +104,120 @@ export const CompassDial: React.FC<CompassDialProps> = ({
                 y1={y1}
                 x2={x2}
                 y2={y2}
-                stroke={isMajor ? '#ffffff' : isMedium ? '#93c5fd' : '#94a3b8'}
-                strokeWidth={isMajor ? 2 : 1}
+                stroke={isMajor ? '#ffffff' : isMedium ? '#7dd3fc' : 'rgba(255, 255, 255, 0.4)'}
+                strokeWidth={isMajor ? 1.75 : 1}
                 strokeLinecap="round"
               />
             );
           })}
+
+          {/* Cardinal Directions (Bold, Crisp White Inside Ring Track) */}
+          <text
+            x="50"
+            y="20"
+            fill="#ffffff"
+            fontSize="9"
+            fontWeight="bold"
+            fontFamily="system-ui, -apple-system, sans-serif"
+            textAnchor="middle"
+            dominantBaseline="central"
+            style={{ filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.9))' }}
+          >
+            N
+          </text>
+          <text
+            x="80"
+            y="50"
+            fill="#ffffff"
+            fontSize="8.5"
+            fontWeight="bold"
+            fontFamily="system-ui, -apple-system, sans-serif"
+            textAnchor="middle"
+            dominantBaseline="central"
+            style={{ filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.9))' }}
+          >
+            E
+          </text>
+          <text
+            x="50"
+            y="80"
+            fill="#ffffff"
+            fontSize="8.5"
+            fontWeight="bold"
+            fontFamily="system-ui, -apple-system, sans-serif"
+            textAnchor="middle"
+            dominantBaseline="central"
+            style={{ filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.9))' }}
+          >
+            S
+          </text>
+          <text
+            x="20"
+            y="50"
+            fill="#ffffff"
+            fontSize="8.5"
+            fontWeight="bold"
+            fontFamily="system-ui, -apple-system, sans-serif"
+            textAnchor="middle"
+            dominantBaseline="central"
+            style={{ filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.9))' }}
+          >
+            W
+          </text>
         </svg>
 
-        {/* Cardinal Direction Letters */}
-        <span className="absolute top-1 text-white font-extrabold text-[12px] tracking-tight drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)]">
-          N
-        </span>
-        <span className="absolute right-2 text-white/95 font-bold text-[11px] tracking-tight drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)]">
-          E
-        </span>
-        <span className="absolute bottom-1.5 text-white/95 font-bold text-[11px] tracking-tight drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)]">
-          S
-        </span>
-        <span className="absolute left-2 text-white/95 font-bold text-[11px] tracking-tight drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)]">
-          W
-        </span>
-
-        {/* Rotating Compass Needle Dial */}
+        {/* Rotating Cyan Needle (Oriented by Heading) */}
         <div
           className="absolute inset-0 flex items-center justify-center pointer-events-none transition-transform ease-out"
           style={{
             transform: `rotate(${-heading}deg)`,
-            transitionDuration: '160ms',
+            transitionDuration: '180ms',
           }}
         >
-          {/* North Needle Pointer (Aerodynamic Dual-Tone Wedge) */}
           <svg
             viewBox="0 0 100 100"
-            className="w-full h-full filter drop-shadow-[0_2px_5px_rgba(0,0,0,0.6)]"
+            className="w-full h-full filter drop-shadow-[0_2px_6px_rgba(0,0,0,0.8)]"
           >
-            {/* North Left Half - Bright Cyan */}
+            {/* North Pointer - Left Bright Cyan Wedge */}
             <path
-              d="M 50 14 L 50 48 L 41 50 Z"
+              d="M 50 16 L 44 49 L 50 46 Z"
               fill="#38bdf8"
             />
-            {/* North Right Half - Royal Blue */}
+            {/* North Pointer - Right Royal Blue Wedge */}
             <path
-              d="M 50 14 L 59 50 L 50 48 Z"
+              d="M 50 16 L 50 46 L 56 49 Z"
               fill="#0284c7"
             />
-            {/* Subtle highlight sheen */}
+            {/* Center High-Luminance Highlight Spine */}
             <path
-              d="M 50 14 L 46 38 L 50 46 Z"
-              fill="rgba(255, 255, 255, 0.4)"
+              d="M 50 16 L 48 35 L 50 44 Z"
+              fill="rgba(255, 255, 255, 0.6)"
             />
 
-            {/* South Left Half - Light Slate */}
+            {/* South Tail - Light Slate Left */}
             <path
-              d="M 50 82 L 43 50 L 50 52 Z"
+              d="M 50 80 L 46 51 L 50 54 Z"
               fill="#cbd5e1"
-              opacity="0.8"
+              opacity="0.85"
             />
-            {/* South Right Half - Dark Slate */}
+            {/* South Tail - Dark Slate Right */}
             <path
-              d="M 50 82 L 50 52 L 57 50 Z"
+              d="M 50 80 L 50 54 L 54 51 Z"
               fill="#64748b"
-              opacity="0.8"
+              opacity="0.85"
             />
 
             {/* Center Metallic Pivot */}
-            <circle cx="50" cy="50" r="7" fill="#0f172a" stroke="#ffffff" strokeWidth="2" />
-            <circle cx="50" cy="50" r="3.5" fill="#38bdf8" />
+            <circle cx="50" cy="50" r="6" fill="#0f172a" stroke="#ffffff" strokeWidth="1.5" />
+            <circle cx="50" cy="50" r="3" fill="#38bdf8" />
           </svg>
         </div>
+      </div>
 
-        {/* Degree Badge on hover / active */}
-        <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/60 rounded-full backdrop-blur-xs">
-          <span className="text-[10px] font-mono font-bold text-white tracking-tighter">
-            {normalizedHeading}° {dir}
-          </span>
-        </div>
+      {/* Degrees & Direction Readout Badge */}
+      <div className="mt-1 px-2 py-0.5 rounded-full bg-slate-900/80 border border-white/20 backdrop-blur-xs text-white text-[10px] font-mono font-semibold tracking-wider tabular-nums flex items-center gap-1 shadow-md">
+        <span className="text-sky-300">{normalizedHeading}°</span>
+        <span className="text-white/80">{dir}</span>
       </div>
     </div>
   );

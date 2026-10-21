@@ -28,6 +28,8 @@ export interface ImageAdjustment {
   fitMode?: 'fit' | 'fill';
 }
 
+export type StampPlacement = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
+
 export interface StampSettings {
   language: 'id' | 'en';
   timezone: TimezoneOption;
@@ -51,6 +53,39 @@ export interface StampSettings {
   logoUrl: string | null;
   logoSize: number; // e.g. 60 - 120 px
   locationMode: 'device' | 'custom';
+  // Custom text formatting
+  dateFormat: 'full_id' | 'DD/MM/YYYY' | 'MM/DD/YYYY' | 'YYYY-MM-DD';
+  timeFormat: '24h' | '12h';
+  showDayName: boolean;
+  customHeader: string; // Teks kustom tambahan baris atas
+  customSubtext: string; // Teks kustom tambahan baris bawah
+  // Night Mode (Low light boost & high contrast)
+  nightMode: boolean;
+  nightModeContrast: 'high' | 'ultra';
+  // Reference layout & Compass styles
+  compassStyle: 'reference' | 'classic' | 'tactical';
+  layoutPreset: 'reference' | 'standard';
+  coordinateFormat: 'decimal' | 'dms';
+  fontFamily: StampFontFamily;
+  // Corner placement for information overlay
+  stampPlacement: StampPlacement;
+}
+
+export type StampFontFamily =
+  | 'mono'
+  | 'sans'
+  | 'condensed'
+  | 'tech'
+  | 'serif'
+  | 'classic-courier';
+
+export interface SettingsPreset {
+  id: string;
+  name: string;
+  is_default?: boolean;
+  config: Partial<StampSettings>;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface SavedPhoto {

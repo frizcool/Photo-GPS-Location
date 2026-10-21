@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { StampLocation, StampSettings, SavedPhoto, AspectRatio } from './types/stamp';
 import { CameraView } from './components/CameraView';
 import { CameraControls } from './components/CameraControls';
@@ -13,7 +13,12 @@ import { GalleryModal } from './components/GalleryModal';
 import { LogoModal } from './components/LogoModal';
 import { PRESET_LOCATIONS, reverseGeocode, formatIndonesianDate } from './utils/geo';
 import { PRESET_LOGOS } from './utils/logoPresets';
-import { Camera, MapPin, Compass, Shield, Sliders, Navigation } from 'lucide-react';
+import {
+  loadSettingsFromDatabase,
+  saveSettingsToDatabase,
+  saveLogoToDatabase,
+} from './utils/sqliteStorage';
+import { Camera, MapPin, Compass, Shield, Sliders, Navigation, Moon, Database } from 'lucide-react';
 
 const STORAGE_KEY = 'gps_timestamp_saved_photos';
 
@@ -54,6 +59,18 @@ const INITIAL_SETTINGS: StampSettings = {
   logoUrl: PRESET_LOGOS[0].dataUrl, // Hospital / Medical Cross logo preset
   logoSize: 75,
   locationMode: 'custom', // 2 options: 'device' (GPS asli) or 'custom' (bebas edit/preset)
+  dateFormat: 'DD/MM/YYYY', // Reference image date format
+  timeFormat: '24h',
+  showDayName: false,
+  customHeader: '',
+  customSubtext: '',
+  nightMode: false,
+  nightModeContrast: 'high',
+  compassStyle: 'reference',
+  layoutPreset: 'reference',
+  coordinateFormat: 'decimal',
+  fontFamily: 'mono',
+  stampPlacement: 'bottom-right',
 };
 
 export default function App() {
@@ -82,6 +99,26 @@ export default function App() {
       return [];
     }
   });
+
+  // Load persisted configuration from SQLite database upon mount
+  useEffect(() => {
+    loadSettingsFromDatabase(INITIAL_SETTINGS).then(({ settings: loadedSettings }) => {
+      setSettings(loadedSettings);
+    });
+  }, []);
+
+  // Auto-persist settings changes to SQLite database
+  const isMountedRef = useRef(false);
+  useEffect(() => {
+    if (!isMountedRef.current) {
+      isMountedRef.current = true;
+      return;
+    }
+    const timer = setTimeout(() => {
+      saveSettingsToDatabase(settings);
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [settings]);
 
   // Save photos to localStorage whenever updated
   useEffect(() => {
@@ -181,7 +218,7 @@ export default function App() {
   }, [settings.locationMode]);
 
   // Toggle between 2 Location Options: Device GPS vs Custom Location
-  const handleToggleLocationMode = () => {
+  const handleToggleLocationMode = useCallback(() => {
     setSettings((prev) => {
       const nextMode = prev.locationMode === 'device' ? 'custom' : 'device';
       if (nextMode === 'device') {
@@ -189,10 +226,10 @@ export default function App() {
       }
       return { ...prev, locationMode: nextMode };
     });
-  };
+  }, [handleDetectGps]);
 
   // Handle Photo Captured
-  const handlePhotoCaptured = (dataUrl: string) => {
+  const handlePhotoCaptured = useCallback((dataUrl: string) => {
     const newPhoto: SavedPhoto = {
       id: Date.now().toString(),
       dataUrl,
@@ -204,10 +241,22 @@ export default function App() {
 
     setSavedPhotos((prev) => [newPhoto, ...prev.slice(0, 24)]);
     setCurrentPreviewPhoto(dataUrl);
-  };
+  }, [settings.timezone, location]);
+
+  const handleAspectRatioChange = useCallback((ratio: AspectRatio) => {
+    setSettings((s) => (s.aspectRatio === ratio ? s : { ...s, aspectRatio: ratio }));
+  }, []);
+
+  const handleHeadingChange = useCallback((deg: number) => {
+    setLocation((prev) => (prev.heading === Math.round(deg) ? prev : { ...prev, heading: Math.round(deg) }));
+  }, []);
+
+  const handleClearUploadedPhoto = useCallback(() => {
+    setUploadedPhotoUrl(null);
+  }, []);
 
   // Upload an image from device gallery to stamp and adjust it
-  const handleUploadPhoto = (file: File) => {
+  const handleUploadPhoto = useCallback((file: File) => {
     const reader = new FileReader();
     reader.onload = (e) => {
       if (typeof e.target?.result === 'string') {
@@ -215,11 +264,11 @@ export default function App() {
       }
     };
     reader.readAsDataURL(file);
-  };
+  }, []);
 
-  const handleDeletePhoto = (id: string) => {
+  const handleDeletePhoto = useCallback((id: string) => {
     setSavedPhotos((prev) => prev.filter((p) => p.id !== id));
-  };
+  }, []);
 
   return (
     <div className="flex flex-col h-[100dvh] w-screen bg-slate-950 text-white overflow-hidden select-none font-sans">
@@ -236,6 +285,34 @@ export default function App() {
 
         {/* Header Right Actions */}
         <div className="flex items-center gap-1.5 sm:gap-2">
+          {/* Quick Night Mode Toggle Button in Header */}
+          <button
+            type="button"
+            onClick={() => setSettings((s) => ({ ...s, nightMode: !s.nightMode }))}
+            className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs transition-all active:scale-95 ${
+              settings.nightMode
+                ? 'bg-indigo-600 text-white font-bold shadow-md ring-1 ring-indigo-400'
+                : 'bg-white/10 hover:bg-white/20 text-slate-200'
+            }`}
+            title="Aktifkan Mode Malam (Eksposur + Kontras Tinggi)"
+          >
+            <Moon className="w-3.5 h-3.5 text-indigo-300" />
+            <span className="text-[11px] hidden sm:inline">
+              {settings.nightMode ? 'Malam' : 'Mode Malam'}
+            </span>
+          </button>
+
+          {/* SQLite Database Button */}
+          <button
+            type="button"
+            onClick={() => setIsSettingsOpen(true)}
+            className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-sky-950/70 border border-sky-500/30 hover:bg-sky-900/60 active:scale-95 text-xs text-sky-200 transition-all"
+            title="Kelola Preset & Basis Data SQLite"
+          >
+            <Database className="w-3.5 h-3.5 text-sky-400" />
+            <span className="text-[11px] font-mono hidden xs:inline">SQLite</span>
+          </button>
+
           {/* Quick Logo Button */}
           <button
             type="button"
@@ -267,16 +344,12 @@ export default function App() {
           facingMode={facingMode}
           showGrid={showGrid}
           uploadedPhotoUrl={uploadedPhotoUrl}
-          onClearUploadedPhoto={() => setUploadedPhotoUrl(null)}
-          onAspectRatioChange={(ratio: AspectRatio) =>
-            setSettings((s) => ({ ...s, aspectRatio: ratio }))
-          }
+          onClearUploadedPhoto={handleClearUploadedPhoto}
+          onAspectRatioChange={handleAspectRatioChange}
           onPhotoCaptured={handlePhotoCaptured}
           onEditLocationRequest={() => setIsSettingsOpen(true)}
           onOpenLogoPicker={() => setIsLogoModalOpen(true)}
-          onHeadingChange={(deg) =>
-            setLocation((prev) => ({ ...prev, heading: Math.round(deg) }))
-          }
+          onHeadingChange={handleHeadingChange}
           isTakingPhoto={isTakingPhoto}
           setIsTakingPhoto={setIsTakingPhoto}
         />
@@ -294,9 +367,7 @@ export default function App() {
           onUploadPhoto={handleUploadPhoto}
           recentPhoto={savedPhotos[0] || null}
           aspectRatio={settings.aspectRatio}
-          onAspectRatioChange={(ratio: AspectRatio) =>
-            setSettings((s) => ({ ...s, aspectRatio: ratio }))
-          }
+          onAspectRatioChange={handleAspectRatioChange}
           timerSeconds={settings.timerSeconds}
           onTimerChange={(secs) => setSettings((s) => ({ ...s, timerSeconds: secs }))}
           showGrid={showGrid}
@@ -305,6 +376,8 @@ export default function App() {
           cityName={location.city || location.suburb || 'Lokasi'}
           locationMode={settings.locationMode}
           onToggleLocationMode={handleToggleLocationMode}
+          nightMode={settings.nightMode}
+          onToggleNightMode={() => setSettings((s) => ({ ...s, nightMode: !s.nightMode }))}
         />
       </footer>
 
@@ -324,7 +397,12 @@ export default function App() {
         isOpen={isLogoModalOpen}
         onClose={() => setIsLogoModalOpen(false)}
         logoUrl={settings.logoUrl}
-        onLogoChange={(url) => setSettings((s) => ({ ...s, logoUrl: url }))}
+        onLogoChange={(url) => {
+          setSettings((s) => ({ ...s, logoUrl: url }));
+          if (url && url.startsWith('data:')) {
+            saveLogoToDatabase(url, 'custom_logo.png', 'image/png');
+          }
+        }}
         logoSize={settings.logoSize || 75}
         onLogoSizeChange={(size) => setSettings((s) => ({ ...s, logoSize: size }))}
         showLogo={settings.showLogo}

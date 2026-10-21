@@ -13,6 +13,7 @@ import {
   SlidersHorizontal,
   Maximize2,
   Minimize2,
+  Moon,
 } from 'lucide-react';
 import { createStampedImage } from '../utils/canvasStamp';
 import { cameraAudio } from '../utils/audio';
@@ -93,19 +94,30 @@ export const CameraView: React.FC<CameraViewProps> = ({
   });
   const [showAdjustBar, setShowAdjustBar] = useState<boolean>(false);
 
+  // Keep latest onAspectRatioChange in a ref so it doesn't trigger effect re-execution
+  const onAspectRatioChangeRef = useRef(onAspectRatioChange);
+  useEffect(() => {
+    onAspectRatioChangeRef.current = onAspectRatioChange;
+  });
+
+  const lastProcessedImageRef = useRef<string | null>(null);
+
   // Measure uploaded image aspect ratio & auto-adapt container to prevent cropping
   useEffect(() => {
     if (activeImage) {
+      if (lastProcessedImageRef.current === activeImage) {
+        return;
+      }
+      lastProcessedImageRef.current = activeImage;
+
       const img = new Image();
       img.src = activeImage;
       img.onload = () => {
         if (img.naturalWidth && img.naturalHeight) {
           const ratio = img.naturalWidth / img.naturalHeight;
           setImageNaturalAspect(ratio);
-          // Auto switch to original aspect ratio so image is never cropped!
-          if (onAspectRatioChange) {
-            onAspectRatioChange('original');
-          }
+          // Auto switch to original aspect ratio once so image is never cropped
+          onAspectRatioChangeRef.current?.('original');
         }
       };
       // Reset pan and zoom to perfectly centered fit whenever a new photo is chosen
@@ -117,9 +129,10 @@ export const CameraView: React.FC<CameraViewProps> = ({
         fitMode: 'fit',
       });
     } else {
+      lastProcessedImageRef.current = null;
       setImageNaturalAspect(null);
     }
-  }, [activeImage, onAspectRatioChange]);
+  }, [activeImage]);
 
   // Touch & Drag state for fluid mobile interaction
   const isDraggingRef = useRef(false);
@@ -184,9 +197,15 @@ export const CameraView: React.FC<CameraViewProps> = ({
     };
   }, [facingMode, activeImage]);
 
+  const onHeadingChangeRef = useRef(onHeadingChange);
+  useEffect(() => {
+    onHeadingChangeRef.current = onHeadingChange;
+  });
+
   // Real Device Orientation Compass (iOS webkitCompassHeading & Android deviceorientationabsolute)
   useEffect(() => {
     let lastHeading = location.heading ?? 0;
+    let lastReportedHeading = lastHeading;
 
     const handleOrientation = (e: DeviceOrientationEvent) => {
       let rawHeading: number | null = null;
@@ -211,7 +230,11 @@ export const CameraView: React.FC<CameraViewProps> = ({
 
         const smoothed = (lastHeading + diff * 0.35 + 360) % 360;
         lastHeading = smoothed;
-        onHeadingChange(Math.round(smoothed));
+        const rounded = Math.round(smoothed);
+        if (Math.abs(rounded - lastReportedHeading) >= 1) {
+          lastReportedHeading = rounded;
+          onHeadingChangeRef.current?.(rounded);
+        }
       }
     };
 
@@ -232,7 +255,7 @@ export const CameraView: React.FC<CameraViewProps> = ({
       win.removeEventListener('deviceorientationabsolute', handleOrientation as EventListener, true);
       win.removeEventListener('deviceorientation', handleOrientation, true);
     };
-  }, [onHeadingChange, location.heading]);
+  }, []);
 
   // Request iOS Compass Permission
   const handleRequestCompassPermission = async () => {
@@ -248,6 +271,19 @@ export const CameraView: React.FC<CameraViewProps> = ({
       }
     }
   };
+
+  const handleMapImageReady = useCallback((img: HTMLImageElement) => {
+    mapImageRef.current = img;
+  }, []);
+
+  const handleLogoImageReady = useCallback((img: HTMLImageElement | null) => {
+    logoImageRef.current = img;
+  }, []);
+
+  const handleOverlayHeadingChange = useCallback((deg: number) => {
+    handleRequestCompassPermission();
+    onHeadingChangeRef.current?.(deg);
+  }, []);
 
   // Pan / Drag Handlers
   const handlePointerDown = (clientX: number, clientY: number) => {
@@ -390,6 +426,11 @@ export const CameraView: React.FC<CameraViewProps> = ({
     setIsTakingPhoto,
   ]);
 
+  const executeCaptureRef = useRef(executeCapture);
+  useEffect(() => {
+    executeCaptureRef.current = executeCapture;
+  });
+
   // Watch isTakingPhoto prop to trigger capture
   useEffect(() => {
     if (!isTakingPhoto) return;
@@ -408,15 +449,15 @@ export const CameraView: React.FC<CameraViewProps> = ({
           clearInterval(interval);
           setCountdown(null);
           cameraAudio.playBeep(true);
-          executeCapture();
+          executeCaptureRef.current();
         }
       }, 1000);
 
       return () => clearInterval(interval);
     } else {
-      executeCapture();
+      executeCaptureRef.current();
     }
-  }, [isTakingPhoto, settings.timerSeconds, executeCapture]);
+  }, [isTakingPhoto, settings.timerSeconds]);
 
   // Handle Upload Image from File Picker directly
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -464,6 +505,7 @@ export const CameraView: React.FC<CameraViewProps> = ({
   const transformStyle = {
     transform: `translate(${adjustment.panX}%, ${adjustment.panY}%) scale(${adjustment.zoom}) rotate(${adjustment.rotate}deg)`,
     transition: isDraggingRef.current ? 'none' : 'transform 100ms ease-out',
+    filter: settings.nightMode ? 'brightness(1.35) contrast(1.18) saturate(1.1)' : undefined,
   };
 
   return (
@@ -495,6 +537,14 @@ export const CameraView: React.FC<CameraViewProps> = ({
         }}
         className={`relative w-full max-w-2xl mx-auto overflow-hidden shadow-2xl transition-all duration-300 cursor-grab active:cursor-grabbing touch-none bg-slate-950 ${getAspectClass()}`}
       >
+        {/* Night Mode Active Viewfinder Badge */}
+        {settings.nightMode && (
+          <div className="absolute top-3 left-1/2 -translate-x-1/2 z-30 pointer-events-none px-3 py-1 rounded-full bg-indigo-950/85 border border-indigo-400/50 text-indigo-200 text-[10px] sm:text-xs font-semibold backdrop-blur-md flex items-center gap-1.5 shadow-xl animate-in fade-in">
+            <Moon className="w-3.5 h-3.5 text-indigo-300 animate-pulse shrink-0" />
+            <span>Mode Malam Aktif (+35% Eksposur)</span>
+          </div>
+        )}
+
         {/* Shutter White Flash effect */}
         {isFlashing && (
           <div className="absolute inset-0 bg-white z-50 pointer-events-none animate-ping opacity-90 transition-opacity duration-150" />
@@ -598,16 +648,9 @@ export const CameraView: React.FC<CameraViewProps> = ({
             settings={settings}
             onEditRequest={onEditLocationRequest}
             onOpenLogoPicker={onOpenLogoPicker}
-            onHeadingChange={(deg) => {
-              handleRequestCompassPermission();
-              onHeadingChange(deg);
-            }}
-            onMapImageReady={(img) => {
-              mapImageRef.current = img;
-            }}
-            onLogoImageReady={(img) => {
-              logoImageRef.current = img;
-            }}
+            onHeadingChange={handleOverlayHeadingChange}
+            onMapImageReady={handleMapImageReady}
+            onLogoImageReady={handleLogoImageReady}
           />
         </div>
 
